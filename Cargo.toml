@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "pdfrs",
+    "serde_pdf",
+]

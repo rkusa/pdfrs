@@ -1,0 +1,7 @@
+.*
+!.gitignore
+target
+**/*.rs.bk
+Cargo.lock
+/references
+*.result.pdf

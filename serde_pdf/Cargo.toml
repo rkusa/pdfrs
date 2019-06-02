@@ -1,0 +1,14 @@
+[package]
+name = "serde_pdf"
+version = "0.1.0"
+authors = ["Markus Ast <m@rkusa.st>"]
+edition = "2018"
+
+[dependencies]
+serde = "1.0"
+serde_bytes = "0.11"
+num-traits = "0.2"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+serde_derive = "1.0"

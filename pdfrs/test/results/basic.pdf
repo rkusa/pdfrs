@@ -1,0 +1,51 @@
+%PDF-1.6
+%ÿÿÿÿ
+
+4 0 obj
+<<
+	/Type /Page
+	/Parent 1 0 R
+	/Resources <<
+		/Type /Resources
+		/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]
+	>>
+	/Contents [2 0 R]
+>>
+endobj
+
+1 0 obj
+<<
+	/Type /Pages
+	/MediaBox [0 0 595.296 841.896]
+	/Kids [4 0 R]
+	/Count 1
+>>
+endobj
+
+5 0 obj
+<<
+	/Type /Catalog
+	/Pages 1 0 R
+>>
+endobj
+
+xref
+0 2
+0000000000 65535 f
+0000000171 00000 n
+4 2
+0000000016 00000 n
+0000000265 00000 n
+trailer
+<<
+	/Size 4
+	/Root 5 0 R
+	/ID [<55465455> <55465455>]
+	/Info <<
+		/Producer (pdfrs v0.1.0 \(github.com/rkusa/pdfrs\))
+		/CreationDate (D:20190602142800+00'00')
+	>>
+>>
+startxref
+317
+%%EOF
