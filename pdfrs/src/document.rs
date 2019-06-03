@@ -1,27 +1,39 @@
 use std::collections::HashMap;
 use std::io::{self, Write};
+use std::mem;
 
 use crate::page::{Page, Pages, Resources};
-use crate::stream::Stream;
+use crate::stream::{Stream, StreamRef};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use serde_pdf::{to_writer, Object, PdfStr, PdfString, Reference};
+use serde_pdf::{to_writer, Object, ObjectId, PdfStr, PdfString, Reference};
 
 #[cfg(test)]
 use chrono::TimeZone;
 #[cfg(not(test))]
 use uuid::Uuid;
 
+const RESERVED_PAGES_ID: usize = 1;
+// const PAGES_ID: ObjectId = ObjectId::new(RESERVED_PAGES_ID, 0);
+// const PAGES_REFERENCE: Reference<Pages<'_>> = Reference::new(PAGES_ID);
+
 pub struct IdSeq {
     next_id: usize,
 }
 
-pub struct Document<W: io::Write> {
-    out: DocWriter<W>,
+pub struct Document<'a, W: io::Write> {
+    out: Writer<W>,
     id_seq: IdSeq,
+    pages: Vec<Reference<Page<'a>>>,
 }
 
-impl<W> Document<W>
+enum Writer<W: io::Write> {
+    Doc(DocWriter<W>),
+    Stream(Stream<W>),
+    Null,
+}
+
+impl<'a, W> Document<'a, W>
 where
     W: io::Write,
 {
@@ -35,8 +47,11 @@ where
         out.write_all(&[255, 255, 255, 255, '\n' as u8, '\n' as u8])?;
 
         Ok(Document {
-            out,
-            id_seq: IdSeq { next_id: 1 },
+            out: Writer::Doc(out),
+            id_seq: IdSeq {
+                next_id: RESERVED_PAGES_ID + 1,
+            },
+            pages: Vec::new(),
         })
     }
 
@@ -44,8 +59,9 @@ where
         Object::new(self.id_seq.next(), 0, value)
     }
 
-    fn new_stream(&mut self) -> Stream<W> {
-        Stream::new(&mut self.id_seq, &mut self.out)
+    fn new_stream(&mut self) {
+        let out = mem::replace(&mut self.out, Writer::Null);
+        self.out = out.into_stream(&mut self.id_seq);
     }
 
     fn write_object<D: Serialize>(&mut self, value: D) -> Result<Reference<D>, serde_pdf::Error> {
@@ -56,9 +72,47 @@ where
     }
 
     fn write<D: Serialize>(&mut self, obj: Object<D>) -> Result<(), serde_pdf::Error> {
-        self.out.xref.insert(obj.id(), self.out.len);
-        self.out.add_xref(obj.id());
-        serde_pdf::to_writer(&mut self.out, &obj)
+        match self.out {
+            Writer::Stream(_) => {
+                // TODO: maybe close stream instead of panicing
+                unreachable!();
+            }
+            Writer::Doc(ref mut w) => {
+                w.xref.insert(obj.id(), w.len);
+                w.add_xref(obj.id());
+                serde_pdf::to_writer(w, &obj)
+            }
+            Writer::Null => {
+                unreachable!();
+            }
+        }
+    }
+
+    fn start_page(&mut self) {
+        self.new_stream();
+    }
+
+    fn end_page(&mut self) -> Result<(), serde_pdf::Error> {
+        if let Some(content_ref) = self.out.end_stream()? {
+            // TODO: move to consts once const_fn landed
+            let id = ObjectId::new(RESERVED_PAGES_ID, 0);
+            let reference: Reference<Pages<'_>> = Reference::new(id);
+
+            let page = Page {
+                parent: reference,
+                resources: Resources {
+                    // while obsolete since PDF 1.4, still here for compatibility reasons, and simply
+                    // setting all possible values ...
+                    proc_set: vec!["PDF", "Text", "ImageB", "ImageC", "ImageI"],
+                },
+                contents: vec![content_ref],
+            };
+
+            let page_ref = self.write_object(page)?;
+            self.pages.push(page_ref);
+        }
+
+        Ok(())
     }
 
     pub fn end(mut self) -> Result<(), serde_pdf::Error> {
@@ -68,73 +122,32 @@ where
             pages: Reference<Pages<'a>>,
         }
 
-        let mut pages = self.new_object(Pages {
-            media_box: (0.0, 0.0, 595.296, 841.896),
-            kids: Vec::new(),
-            count: 0,
-        });
+        self.start_page();
+        self.end_page()?;
 
-        let contents = self.new_stream();
-        let contents_ref = contents.to_reference();
-        contents.end()?;
-
-        let page = Page {
-            parent: pages.to_reference(),
-            resources: Resources {
-                // while obsolete since PDF 1.4, still here for compatibility reasons, and simply
-                // setting all possible values ...
-                proc_set: vec!["PDF", "Text", "ImageB", "ImageC", "ImageI"],
+        let kids = mem::replace(&mut self.pages, Vec::new());
+        let pages = Object::new(
+            RESERVED_PAGES_ID,
+            0,
+            Pages {
+                media_box: (0.0, 0.0, 595.296, 841.896),
+                count: kids.len(),
+                kids,
             },
-            contents: vec![contents_ref],
-        };
-
-        // 6 0 obj
-        // <<
-        //     /Type /Page
-        //     /Parent 1 0 R
-        //     /Resources <<
-        //         /ColorSpace <<
-        //             /CS1 [/ICCBased 2 0 R]
-        //         >>
-        //         /ProcSet [/PDF /Text /ImageB /ImageC /ImageI]
-        //         /Font <<
-        //             /F1 5 0 R
-        //         >>
-        //         /XObject <<
-        //         >>
-        //     >>
-        //     /Contents [3 0 R]
-        // >>
-        // endobj
-
-        // 1 0 obj
-        // <<
-        //     /Type /Pages
-        //     /MediaBox [0 0 595.296 841.896]
-        //     /Kids [6 0 R]
-        //     /Count 1
-        // >>
-        // endobj
-
-        // <<
-        // 	/Type /Pages
-        // 	/MediaBox [0 0 595.296 841.896]
-        // 	/Kids [6 0 R]
-        // 	/Count 1
-        // >>
-
-        let page_ref = self.write_object(page)?;
-        let kids = vec![page_ref];
-        pages.content_mut().count = kids.len();
-        pages.content_mut().kids = kids;
-
+        );
         let pages_ref = pages.to_reference();
         self.write(pages)?;
         let catalog_ref = self.write_object(Catalog { pages: pages_ref })?;
 
+        let mut out = match self.out {
+            Writer::Doc(w) => w,
+            Writer::Stream(w) => w.end()?,
+            Writer::Null => unreachable!(),
+        };
+
         // xref
-        let startxref = self.out.len;
-        write_xref(&mut self.out)?;
+        let startxref = out.len;
+        write_xref(&mut out)?;
 
         // trailer
         #[derive(Serialize)]
@@ -162,9 +175,9 @@ where
         #[cfg(not(test))]
         let id = Uuid::new_v4().to_string();
 
-        write!(self.out, "trailer\n")?;
+        write!(out, "trailer\n")?;
         to_writer(
-            &mut self.out,
+            &mut out,
             &Trailer {
                 size: self.id_seq.count() - 1,
                 root: catalog_ref,
@@ -181,7 +194,7 @@ where
                 },
             },
         )?;
-        write!(self.out, "\nstartxref\n{}\n%%EOF", startxref)?;
+        write!(out, "\nstartxref\n{}\n%%EOF", startxref)?;
 
         Ok(())
     }
@@ -271,33 +284,48 @@ where
     }
 }
 
-// <<
-// 	/Type /Catalog
-// 	/Pages 1 0 R
-// >>
+impl<W: io::Write> io::Write for Writer<W> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        match self {
+            Writer::Doc(w) => w.write(buf),
+            Writer::Stream(w) => w.write(buf),
+            Writer::Null => unreachable!(),
+        }
+    }
 
-// impl io::Read for Document {
-//     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-//         if buf.len() == 0 {
-//             return Ok(0);
-//         }
+    fn flush(&mut self) -> Result<(), io::Error> {
+        match self {
+            Writer::Doc(w) => w.flush(),
+            Writer::Stream(w) => w.flush(),
+            Writer::Null => unreachable!(),
+        }
+    }
+}
 
-//         let amt = cmp::min(buf.len(), self.buffer.len());
-//         let (a, b) = self.buffer.split_at(amt);
+impl<W: io::Write> Writer<W> {
+    fn into_stream(self, id_seq: &mut IdSeq) -> Self {
+        match self {
+            Writer::Doc(w) => Writer::Stream(Stream::new(id_seq, w)),
+            s => s,
+        }
+    }
 
-//         // First check if the amount of bytes we want to read is small:
-//         // `copy_from_slice` will generally expand to a call to `memcpy`, and
-//         // for a single byte the overhead is significant.
-//         if amt == 1 {
-//             buf[0] = a[0];
-//         } else {
-//             buf[..amt].copy_from_slice(a);
-//         }
-
-//         self.buffer = b.to_vec();
-//         Ok(amt)
-//     }
-// }
+    fn end_stream(&mut self) -> Result<Option<Reference<StreamRef>>, io::Error> {
+        let out = mem::replace(&mut *self, Writer::Null);
+        match out {
+            Writer::Doc(w) => {
+                *self = Writer::Doc(w);
+                Ok(None)
+            }
+            Writer::Stream(stream) => {
+                let stream_ref = stream.to_reference();
+                *self = Writer::Doc(stream.end()?);
+                Ok(Some(stream_ref))
+            }
+            Writer::Null => unreachable!(),
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {

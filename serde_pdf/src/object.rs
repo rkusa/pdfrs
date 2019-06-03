@@ -116,6 +116,12 @@ where
     }
 }
 
+impl<D: Serialize> Clone for Reference<D> {
+    fn clone(&self) -> Self {
+        Reference(self.0.clone(), PhantomData)
+    }
+}
+
 impl<D> Serialize for Reference<D>
 where
     D: Serialize,

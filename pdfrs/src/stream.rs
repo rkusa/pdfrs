@@ -13,16 +13,16 @@ pub struct StreamMeta {
 
 pub type StreamRef = ();
 
-pub struct Stream<'a, W: io::Write> {
+pub struct Stream<W: io::Write> {
     id: ObjectId,
     len_obj_id: ObjectId,
     len: usize,
     header_written: bool,
-    wr: &'a mut DocWriter<W>,
+    wr: DocWriter<W>,
 }
 
-impl<'a, W: io::Write> Stream<'a, W> {
-    pub fn new(id_seq: &mut IdSeq, wr: &'a mut DocWriter<W>) -> Self {
+impl<W: io::Write> Stream<W> {
+    pub fn new(id_seq: &mut IdSeq, wr: DocWriter<W>) -> Self {
         Stream {
             id: ObjectId::new(id_seq.next(), 0),
             len_obj_id: ObjectId::new(id_seq.next(), 0),
@@ -55,9 +55,9 @@ impl<'a, W: io::Write> Stream<'a, W> {
         Ok(())
     }
 
-    pub fn end(mut self) -> Result<(), io::Error> {
+    pub fn end(mut self) -> Result<DocWriter<W>, io::Error> {
         if self.len == 0 {
-            return Ok(());
+            return Ok(self.wr);
         }
 
         self.write_header()?;
@@ -71,11 +71,11 @@ impl<'a, W: io::Write> Stream<'a, W> {
         to_writer(&mut self.wr, &len_obj)
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
-        Ok(())
+        Ok(self.wr)
     }
 }
 
-impl<'a, W> io::Write for Stream<'a, W>
+impl<W> io::Write for Stream<W>
 where
     W: io::Write,
 {
