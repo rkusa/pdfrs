@@ -92,8 +92,8 @@ where
             match ch {
                 0x00 => return Err(Error::Eof), // TODO: other error?
                 // characters that need to be escaped (outside of ! to ~ and delimiter characters)
-                0x01...0x20
-                | 0x7F...0xFF
+                0x01..=0x20
+                | 0x7F..=0xFF
                 | b'('
                 | b')'
                 | b'<'
@@ -113,7 +113,7 @@ where
 
                     from = i + 1;
                 }
-                0x21...0x7E => continue,
+                0x21..=0x7E => continue,
                 _ => {
                     // eprintln!("FAIL {} {:?}", ch, ch.to_digit(10));
                     return Err(Error::ExpectedBoolean);

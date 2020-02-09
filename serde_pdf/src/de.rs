@@ -147,7 +147,7 @@ where
         let mut val = T::try_from(0).or(Err(Error::ExpectedInteger))?;
         loop {
             match self.peek_char()? {
-                Some(ch @ b'0'...b'9') => {
+                Some(ch @ b'0'..=b'9') => {
                     val = match val.checked_mul(&ten) {
                         Some(v) => v,
                         None => return Err(Error::NumberOverflow),
@@ -190,7 +190,7 @@ where
                 let val: T = self.parse_unsigned(allow_decimal)?;
                 Ok(val.neg())
             }
-            Some(b'0'...b'9') | Some(b'+') | Some(b'.') => {
+            Some(b'0'..=b'9') | Some(b'+') | Some(b'.') => {
                 let val: T = self.parse_unsigned(allow_decimal)?;
                 Ok(val)
             }
@@ -211,7 +211,7 @@ where
             let mut p: i32 = 0;
             loop {
                 match self.peek_char()? {
-                    Some(ch @ b'0'...b'9') => {
+                    Some(ch @ b'0'..=b'9') => {
                         self.discard_char();
 
                         p -= 1;
@@ -322,13 +322,13 @@ where
                         Some(b')') => chars.push(b')' as char),
                         Some(b'\\') => chars.push(b'\\' as char),
                         Some(b'\n') => {}
-                        Some(c1 @ b'0'...b'9') => {
+                        Some(c1 @ b'0'..=b'9') => {
                             let mut bytes = Vec::with_capacity(3);
                             bytes.push(c1);
 
                             // we take up to three, ie, two more bytes
                             for _ in 1..=2 {
-                                if let Some(c @ b'0'...b'9') = self.peek_char()? {
+                                if let Some(c @ b'0'..=b'9') = self.peek_char()? {
                                     bytes.push(self.next_char()?.unwrap());
                                 }
                             }
@@ -373,7 +373,7 @@ where
                         return Err(Error::InvalidEscapeSequence);
                     }
                 }
-                0x21...0x7E => {
+                0x21..=0x7E => {
                     self.discard_char();
                     name.push(ch as char);
                 }
@@ -405,7 +405,7 @@ where
             Some(b'n') => self.deserialize_unit(visitor), // null
             Some(b't') | Some(b'f') => self.deserialize_bool(visitor),
             Some(b'(') | Some(b'/') => self.deserialize_str(visitor),
-            Some(b'0'...b'9') | Some(b'+') => self.deserialize_u64(visitor),
+            Some(b'0'..=b'9') | Some(b'+') => self.deserialize_u64(visitor),
             Some(b'-') => self.deserialize_i64(visitor),
             Some(b'.') => self.deserialize_f64(visitor),
             Some(b'[') => self.deserialize_seq(visitor),
