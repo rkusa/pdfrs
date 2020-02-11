@@ -6,7 +6,7 @@ pub struct IdSeq {
 impl IdSeq {
     /// Constructs a new `IdSeq` starting with `next_id` as the next ID in its sequence.
     pub fn new(next_id: usize) -> Self {
-        return IdSeq { next_id };
+        IdSeq { next_id }
     }
 
     /// Retrieves the next id.

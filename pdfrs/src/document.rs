@@ -40,7 +40,7 @@ where
         // (ASCII value >= 128), so that generic tools have a chance to detect
         // that it's a binary file
         write!(writer, "%PDF-1.6\n%")?;
-        writer.write_all(&[255, 255, 255, 255, '\n' as u8, '\n' as u8])?;
+        writer.write_all(&[255, 255, 255, 255, b'\n', b'\n'])?;
 
         Ok(Document {
             out: Writer::Doc(writer),
@@ -97,7 +97,7 @@ where
         let obj = self.new_object(value);
         let r = obj.to_reference();
         self.write(obj)?;
-        return Ok(r);
+        Ok(r)
     }
 
     /// Writes the provided `object` to the PDF output.
@@ -206,7 +206,7 @@ where
             info: Info<'a>,
         }
 
-        write!(out, "trailer\n")?;
+        writeln!(out, "trailer")?;
         to_writer(
             &mut out,
             &Trailer {

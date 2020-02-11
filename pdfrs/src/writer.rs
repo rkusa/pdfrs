@@ -35,7 +35,7 @@ impl<W: io::Write> DocWriter<W> {
     }
 
     pub fn write_xref(&mut self) -> Result<(), io::Error> {
-        write!(self.w, "xref\n")?;
+        writeln!(self.w, "xref")?;
 
         let mut from = 0;
         let mut to = 1;
@@ -46,14 +46,14 @@ impl<W: io::Write> DocWriter<W> {
                 offsets.push(offset);
             } else {
                 if from == 0 || !offsets.is_empty() {
-                    write!(self.w, "{} {}\n", from, to - from)?;
+                    writeln!(self.w, "{} {}", from, to - from)?;
 
                     if from == 0 {
-                        write!(self.w, "0000000000 65535 f\n")?;
+                        writeln!(self.w, "0000000000 65535 f")?;
                     }
 
                     for offset in &offsets {
-                        write!(self.w, "{:010} 00000 n\n", offset)?;
+                        writeln!(self.w, "{:010} 00000 n", offset)?;
                     }
                 }
 

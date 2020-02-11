@@ -42,7 +42,7 @@ impl<W: io::Write> Stream<W> {
             self.header_written = true;
 
             self.wr.add_xref(self.id.id());
-            write!(self.wr, "{} {} obj\n", self.id.id(), self.id.rev())?;
+            writeln!(self.wr, "{} {} obj", self.id.id(), self.id.rev())?;
             to_writer(
                 &mut self.wr,
                 &StreamMeta {
@@ -50,7 +50,7 @@ impl<W: io::Write> Stream<W> {
                 },
             )
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-            write!(self.wr, "\nstream\n")?;
+            writeln!(self.wr, "\nstream")?;
         }
 
         Ok(())
@@ -63,9 +63,9 @@ impl<W: io::Write> Stream<W> {
 
         self.write_header()?;
         if self.len > 0 {
-            write!(self.wr, "\n")?;
+            writeln!(self.wr)?;
         }
-        write!(self.wr, "endstream\nendobj\n\n")?;
+        writeln!(self.wr, "endstream\nendobj\n")?;
 
         self.wr.add_xref(self.len_obj_id.id());
         let len_obj = Object::new(self.len_obj_id.id(), self.len_obj_id.rev(), self.len);
