@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 
-use crate::document::{DocWriter, IdSeq};
+use crate::idseq::IdSeq;
+use crate::writer::DocWriter;
 use serde::Serialize;
 use serde_pdf::{to_writer, Object, ObjectId, Reference};
 

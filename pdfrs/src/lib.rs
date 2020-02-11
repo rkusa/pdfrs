@@ -3,8 +3,10 @@ extern crate lazy_static;
 
 mod document;
 pub mod fonts;
+mod idseq;
 mod page;
 mod stream;
+mod writer;
 
 pub use document::Document;
 
