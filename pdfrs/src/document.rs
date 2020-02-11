@@ -6,11 +6,7 @@ use crate::page::{Page, Pages, Resources};
 use crate::writer::{DocWriter, Writer};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use serde_pdf::{to_writer, Object, ObjectId, PdfStr, PdfString, Reference};
-
-#[cfg(test)]
-use chrono::TimeZone;
-#[cfg(not(test))]
+use serde_pdf::{to_writer, Object, ObjectId, PdfStr, Reference};
 use uuid::Uuid;
 
 const RESERVED_PAGES_ID: usize = 1;
@@ -22,6 +18,9 @@ pub struct Document<'a, W: io::Write> {
     out: Writer<W>,
     id_seq: IdSeq,
     pages: Vec<Reference<Page<'a>>>,
+    id: String,
+    creation_date: DateTime<Utc>,
+    producer: String,
 }
 
 impl<'a, W> Document<'a, W>
@@ -47,7 +46,28 @@ where
             out: Writer::Doc(writer),
             id_seq: IdSeq::new(RESERVED_PAGES_ID + 1),
             pages: Vec::new(),
+            id: Uuid::new_v4().to_string(),
+            creation_date: Utc::now(),
+            producer: format!(
+                "pdfrs v{} (github.com/rkusa/pdfrs)",
+                env!("CARGO_PKG_VERSION")
+            ),
         })
+    }
+
+    /// Overrides the automatically generated PDF id by the provided `id`.
+    pub fn set_id<S: Into<String>>(&mut self, id: S) {
+        self.id = id.into();
+    }
+
+    /// Overrides the PDF's creation date (now by default) by the provided `date`.
+    pub fn set_creation_date(&mut self, date: DateTime<Utc>) {
+        self.creation_date = date;
+    }
+
+    /// Overrides the default producer (pdfrs) by the provided `producer`.
+    pub fn set_producer<S: Into<String>>(&mut self, producer: S) {
+        self.producer = producer.into();
     }
 
     /// Create a new PDF object with the given `content`.
@@ -169,10 +189,10 @@ where
         #[derive(Serialize)]
         #[serde(rename_all = "PascalCase")]
         #[serde(rename = "")]
-        struct Info {
-            producer: PdfString,
+        struct Info<'a> {
+            producer: PdfStr<'a>,
             #[serde(with = "serde_pdf::datetime")]
-            creation_date: DateTime<Utc>,
+            creation_date: &'a DateTime<Utc>,
         }
 
         #[derive(Serialize)]
@@ -183,13 +203,8 @@ where
             root: Reference<Catalog<'a>>,
             #[serde(rename = "ID")]
             id: (PdfStr<'a>, PdfStr<'a>),
-            info: Info,
+            info: Info<'a>,
         }
-
-        #[cfg(test)]
-        let id = "test".to_string();
-        #[cfg(not(test))]
-        let id = Uuid::new_v4().to_string();
 
         write!(out, "trailer\n")?;
         to_writer(
@@ -197,46 +212,15 @@ where
             &Trailer {
                 size: self.id_seq.count() - 1,
                 root: catalog_ref,
-                id: (PdfStr::Hex(&id), PdfStr::Hex(&id)),
+                id: (PdfStr::Hex(&self.id), PdfStr::Hex(&self.id)),
                 info: Info {
-                    producer: PdfString::Literal(format!(
-                        "pdfrs v{} (github.com/rkusa/pdfrs)",
-                        env!("CARGO_PKG_VERSION")
-                    )),
-                    #[cfg(not(test))]
-                    creation_date: Utc::now(),
-                    #[cfg(test)]
-                    creation_date: Utc.ymd(2019, 6, 2).and_hms(14, 28, 0),
+                    producer: PdfStr::Literal(&self.producer),
+                    creation_date: &self.creation_date,
                 },
             },
         )?;
         write!(out, "\nstartxref\n{}\n%%EOF", startxref)?;
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn basic() {
-        use std::fs::File;
-
-        let mut result = Vec::new();
-        let doc = Document::new(&mut result).unwrap();
-        doc.end().unwrap();
-
-        let mut file =
-            File::create("./test/results/basic.result.pdf").expect("Error creating result file");
-        file.write_all(&result)
-            .expect("Error writing result to file");
-
-        let expected = include_bytes!("../test/results/basic.pdf");
-        assert!(
-            result.iter().eq(expected.iter()),
-            "Resulting PDF does not match expected one"
-        );
     }
 }

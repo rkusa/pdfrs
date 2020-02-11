@@ -149,7 +149,7 @@ mod test {
         w.write_xref().unwrap();
         assert_eq!(
             String::from_utf8_lossy(&b).to_string(),
-            include_str!("../test/results/xref_1.txt"),
+            include_str!("../tests/fixtures/xref_1.txt"),
         );
     }
 
@@ -166,7 +166,7 @@ mod test {
         w.write_xref().unwrap();
         assert_eq!(
             String::from_utf8_lossy(&b).to_string(),
-            include_str!("../test/results/xref_2.txt"),
+            include_str!("../tests/fixtures/xref_2.txt"),
         );
     }
 }
