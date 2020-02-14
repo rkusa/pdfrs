@@ -133,8 +133,9 @@ fn build_font(
 ) -> io::Result<()> {
     let mut out = BufWriter::new(File::create(&out_path)?);
 
-    write!(out, "lazy_static! {{\n")?;
-    write!(out, "pub static ref {}: AfmFont = AfmFont {{\n", name)?;
+    writeln!(out, "lazy_static! {{")?;
+    writeln!(out, "#[allow(clippy::needless_update)]")?;
+    writeln!(out, "pub static ref {}: AfmFont = AfmFont {{", name)?;
 
     let mut parsing_char_metrics = 0;
     let mut parsing_kern_pairs = 0;
@@ -156,7 +157,7 @@ fn build_font(
             let name = caps.name("name").unwrap().as_str();
             let width = caps.name("width").unwrap().as_str().parse::<u32>().unwrap();
             if let Some(code) = name_to_code.get(name) {
-                write!(out, "        ({}, {}),\n", code, width)?;
+                writeln!(out, "        ({}, {}),", code, width)?;
             }
 
             continue;
@@ -171,7 +172,7 @@ fn build_font(
             let width = caps.name("width").unwrap().as_str().parse::<i32>().unwrap();
 
             if let (Some(left), Some(right)) = (name_to_code.get(left), name_to_code.get(right)) {
-                write!(out, "        (({}, {}), {}),\n", left, right, width)?;
+                writeln!(out, "        (({}, {}), {}),", left, right, width)?;
             }
 
             continue;
@@ -181,39 +182,39 @@ fn build_font(
             match key {
                 "StartCharMetrics" => {
                     parsing_char_metrics = val.parse().unwrap();
-                    write!(out, "    glyph_widths: vec![\n")?;
+                    writeln!(out, "    glyph_widths: vec![")?;
                 }
                 "StartKernPairs" => {
                     parsing_kern_pairs = val.parse().unwrap();
                     has_kern_paris = true;
-                    write!(out, "    kerning: vec![\n")?;
+                    writeln!(out, "    kerning: vec![")?;
                 }
                 "ItalicAngle" => {
                     let key = key.to_snake_case();
-                    write!(out, "    {}: {} as f32,\n", key, val)?;
+                    writeln!(out, "    {}: {} as f32,", key, val)?;
                 }
                 "CapHeight" | "XHeight" | "Ascender" | "Descender" | "UnderlinePosition"
                 | "UnderlineThickness" => {
                     let key = key.to_snake_case();
-                    write!(out, "    {}: {},\n", key, val)?;
+                    writeln!(out, "    {}: {},", key, val)?;
                 }
                 "FontName" | "FullName" | "FamilyName" | "CharacterSet" => {
                     let key = key.to_snake_case();
-                    write!(out, "    {}: \"{}\",\n", key, val)?;
+                    writeln!(out, "    {}: \"{}\",", key, val)?;
                 }
                 "FontBBox" => {
                     let val = val.replace(' ', ", ");
-                    write!(out, "    font_bbox: ({}),\n", val)?;
+                    writeln!(out, "    font_bbox: ({}),", val)?;
                 }
                 _ => {}
             }
         } else {
             match line {
                 "EndCharMetrics" => {
-                    write!(out, "    ].into_iter().collect(),\n")?;
+                    writeln!(out, "    ].into_iter().collect(),")?;
                 }
                 "EndKernPairs" => {
-                    write!(out, "    ].into_iter().collect(),\n")?;
+                    writeln!(out, "    ].into_iter().collect(),")?;
                 }
                 _ => {}
             }
@@ -221,12 +222,12 @@ fn build_font(
     }
 
     if !has_kern_paris {
-        write!(out, "    kerning: std::collections::HashMap::new(),\n")?;
+        writeln!(out, "    kerning: std::collections::HashMap::new(),")?;
     }
 
-    write!(out, "    ..Default::default()\n")?;
-    write!(out, "}};\n")?;
-    write!(out, "}}\n")?;
+    writeln!(out, "    ..Default::default()")?;
+    writeln!(out, "}};")?;
+    writeln!(out, "}}")?;
 
     Ok(())
 }
