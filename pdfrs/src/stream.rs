@@ -5,15 +5,9 @@ use crate::writer::DocWriter;
 use serde::Serialize;
 use serde_pdf::{to_writer, Object, ObjectId, Reference};
 
-#[derive(Serialize)]
-#[serde(rename_all = "PascalCase")]
-#[serde(rename = "")]
-pub struct StreamMeta {
-    pub length: Reference<usize>,
-}
-
-pub type StreamRef = ();
-
+/// A type used to handle writing a PDF stream to a PDF document. It handles creating a
+/// corresponding PDF object, keeping track of the stream's length as well as writing the stream
+/// it all it's related meta data to the PDF document.
 pub struct Stream<W: io::Write> {
     id: ObjectId,
     len_obj_id: ObjectId,
@@ -22,7 +16,19 @@ pub struct Stream<W: io::Write> {
     wr: DocWriter<W>,
 }
 
+/// The properties of a PDF stream's PDF object.
+#[derive(Serialize)]
+#[serde(rename_all = "PascalCase")]
+#[serde(rename = "")]
+pub struct StreamMeta {
+    pub length: Reference<usize>,
+}
+
+/// A type used to create PDF references (`Reference<StreamRef>`).
+pub type StreamRef = ();
+
 impl<W: io::Write> Stream<W> {
+    /// Constructs a new PDF stream.
     pub fn new(id_seq: &mut IdSeq, wr: DocWriter<W>) -> Self {
         Stream {
             id: ObjectId::new(id_seq.next(), 0),
@@ -33,10 +39,13 @@ impl<W: io::Write> Stream<W> {
         }
     }
 
+    /// Returns a PDF reference to the stream's PDF object.
     pub fn to_reference(&self) -> Reference<StreamRef> {
         Reference::new(self.id.clone())
     }
 
+    /// Writes the stream's and its corresponding object's start markers, as well as writing its
+    /// object properties (which includes a reference to its length object).
     fn write_header(&mut self) -> Result<(), io::Error> {
         if !self.header_written {
             self.header_written = true;
@@ -56,6 +65,8 @@ impl<W: io::Write> Stream<W> {
         Ok(())
     }
 
+    /// Ends the PDF stream, which involves writing the stream's and corresponding object's end
+    /// markers and the stream's length object.
     pub fn end(mut self) -> Result<DocWriter<W>, io::Error> {
         if self.len == 0 {
             return Ok(self.wr);
