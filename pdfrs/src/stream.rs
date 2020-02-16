@@ -85,6 +85,49 @@ impl<W: io::Write> Stream<W> {
 
         Ok(self.wr)
     }
+
+    /// Begins a text object (BT - PDF spec 1.7 page 405).
+    pub fn begin_text(&mut self) -> Result<(), io::Error> {
+        // FIXME: move text operations into an object returned here to prevent nested BT.
+        writeln!(self, "BT")
+    }
+
+    /// Ends a text object (ET - PDF spec 1.7 page 405).
+    pub fn end_text(&mut self) -> Result<(), io::Error> {
+        writeln!(self, "ET")
+    }
+
+    /// Sets the text matrix (Tm - PDF spec 1.7 page 406).
+    pub fn set_text_matrix(
+        &mut self,
+        a: f64,
+        b: f64,
+        c: f64,
+        d: f64,
+        e: f64,
+        f: f64,
+    ) -> Result<(), io::Error> {
+        writeln!(
+            self,
+            "{:.3} {:.3} {:.3} {:.3} {:.3} {:.3} Tm",
+            a, b, c, d, e, f
+        )
+    }
+
+    /// Sets the text leading (TL - PDF spec 1.7 page 398).
+    pub fn set_text_leading(&mut self, leading: f64) -> Result<(), io::Error> {
+        writeln!(self, "{:.3} TL", leading)
+    }
+
+    /// Sets the text font and font size (Tf - PDF spec 1.7 page 398).
+    pub fn set_text_font(&mut self, font_id: usize, size: f64) -> Result<(), io::Error> {
+        writeln!(self, "/F{} {:.3} Tf", font_id, size)
+    }
+
+    // Sets the color to use for non-stroking operations (sc - PDF spec 1.7 page 287).
+    pub fn set_fill_color(&mut self, c1: f64, c2: f64, c3: f64) -> Result<(), io::Error> {
+        writeln!(self, "{:.3} {:.3} {:.3} sc", c1, c2, c3)
+    }
 }
 
 impl<W> io::Write for Stream<W>

@@ -9,8 +9,10 @@
 //! `times_bold_italic`, `times_italic`, `times_roman`, `zapf_dingbats`.
 
 mod afm;
+mod font;
 
-use afm::AfmFont;
+pub use afm::AfmFont;
+pub use font::{Font, FontObject};
 
 #[cfg(feature = "courier_bold")]
 include!(concat!(env!("OUT_DIR"), "/courier_bold.rs"));

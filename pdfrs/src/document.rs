@@ -1,12 +1,16 @@
+use std::collections::HashMap;
 use std::io::{self, Write};
 use std::mem;
 
+use crate::fonts::{Font, FontObject};
 use crate::idseq::IdSeq;
 use crate::page::{Page, Pages, Resources};
+use crate::stream::StreamRef;
 use crate::writer::{DocWriter, Writer};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_pdf::{to_writer, Object, ObjectId, PdfStr, Reference};
+use thiserror::Error;
 use uuid::Uuid;
 
 const RESERVED_PAGES_ID: usize = 1;
@@ -21,6 +25,20 @@ pub struct Document<'a, W: io::Write> {
     id: String,
     creation_date: DateTime<Utc>,
     producer: String,
+    fonts: HashMap<&'a str, FontEntry<'a>>,
+    page_state: PageState<'a>,
+}
+
+#[derive(Eq, PartialEq, Hash)]
+struct FontEntry<'a> {
+    id: usize,
+    reference: Reference<FontObject<'a>>,
+}
+
+#[derive(Default, Eq, PartialEq)]
+struct PageState<'a> {
+    fonts: HashMap<usize, Reference<FontObject<'a>>>,
+    contents: Vec<Reference<StreamRef>>,
 }
 
 impl<'a, W> Document<'a, W>
@@ -52,6 +70,8 @@ where
                 "pdfrs v{} (github.com/rkusa/pdfrs)",
                 env!("CARGO_PKG_VERSION")
             ),
+            fonts: HashMap::new(),
+            page_state: PageState::default(),
         })
     }
 
@@ -104,7 +124,7 @@ where
     fn write<D: Serialize>(&mut self, object: Object<D>) -> Result<(), serde_pdf::Error> {
         match self.out {
             Writer::Stream(_) => {
-                // TODO: maybe close stream instead of panicing
+                // FIXME: maybe close stream instead of panicing
                 unreachable!();
             }
             Writer::Doc(ref mut w) => {
@@ -130,18 +150,65 @@ where
             let id = ObjectId::new(RESERVED_PAGES_ID, 0);
             let reference: Reference<Pages<'_>> = Reference::new(id);
 
+            let mut page_state = mem::replace(&mut self.page_state, PageState::default());
+            page_state.contents.push(content_ref);
+
             let page = Page {
                 parent: reference,
                 resources: Resources {
                     // while obsolete since PDF 1.4, still here for compatibility reasons, and simply
                     // setting all possible values ...
                     proc_set: vec!["PDF", "Text", "ImageB", "ImageC", "ImageI"],
+                    font: page_state
+                        .fonts
+                        .into_iter()
+                        .map(|(id, font_ref)| (format!("F{}", id), font_ref))
+                        .collect(),
                 },
-                contents: vec![content_ref],
+                contents: page_state.contents,
             };
 
             let page_ref = self.write_object(page)?;
             self.pages.push(page_ref);
+        }
+
+        Ok(())
+    }
+
+    pub fn text(&mut self, text: &str, font: &'a dyn Font) -> Result<(), Error> {
+        if !self.fonts.contains_key(font.base_name()) {
+            if let Some(content_ref) = self.out.end_stream()? {
+                self.page_state.contents.push(content_ref);
+            }
+
+            let font_object = font.object();
+            let font_ref = self.write_object(font_object)?;
+            self.fonts.insert(
+                font.base_name(),
+                FontEntry {
+                    id: self.fonts.len(),
+                    reference: font_ref,
+                },
+            );
+
+            self.new_stream();
+        }
+
+        if let Some(font_entry) = self.fonts.get(font.base_name()) {
+            self.page_state
+                .fonts
+                .entry(font_entry.id)
+                .or_insert_with(|| font_entry.reference.clone());
+
+            match &mut self.out {
+                Writer::Stream(ref mut s) => {
+                    crate::text::write_text(s, text, font_entry.id)?;
+                }
+                Writer::Doc(_) | Writer::Null => {
+                    // FIXME: return error instead, or ignore and do nothing
+                    unreachable!();
+                }
+            }
         }
 
         Ok(())
@@ -158,7 +225,10 @@ where
             pages: Reference<Pages<'a>>,
         }
 
-        self.start_page();
+        if self.pages.is_empty() {
+            self.start_page();
+        }
+
         self.end_page()?;
 
         let kids = mem::replace(&mut self.pages, Vec::new());
@@ -223,4 +293,12 @@ where
 
         Ok(())
     }
+}
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("error writing PDF")]
+    Io(#[from] io::Error),
+    #[error("error creating PDF object")]
+    Pdf(#[from] serde_pdf::Error),
 }

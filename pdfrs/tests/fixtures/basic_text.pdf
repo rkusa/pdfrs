@@ -1,0 +1,83 @@
+%PDF-1.6
+%ÿÿÿÿ
+
+2 0 obj
+<<
+	/Type /Font
+	/Subtype /Type1
+	/BaseFont /Helvetica
+	/Encoding /WinAnsiEncoding
+>>
+endobj
+
+3 0 obj
+<<
+	/Length 4 0 R
+>>
+stream
+BT
+1.000 0.000 0.000 1.000 10.000 821.721 Tm
+10.175 TL
+/F0 11.000 Tf
+0.000 0.000 0.000 sc
+[(Hello) -278.000 (W) 30.000 (or) -15.000 (ld)] TJ
+ET
+
+endstream
+endobj
+
+4 0 obj
+144
+endobj
+
+5 0 obj
+<<
+	/Type /Page
+	/Parent 1 0 R
+	/Resources <<
+		/Type /Resources
+		/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]
+		/Font << /F0 2 0 R >>
+	>>
+	/Contents [3 0 R]
+>>
+endobj
+
+1 0 obj
+<<
+	/Type /Pages
+	/MediaBox [0 0 595.296 841.896]
+	/Kids [5 0 R]
+	/Count 1
+>>
+endobj
+
+6 0 obj
+<<
+	/Type /Catalog
+	/Pages 1 0 R
+>>
+endobj
+
+xref
+0 7
+0000000000 65535 f
+0000000516 00000 n
+0000000016 00000 n
+0000000118 00000 n
+0000000317 00000 n
+0000000337 00000 n
+0000000610 00000 n
+trailer
+<<
+	/Size 5
+	/Root 6 0 R
+	/ID [<55465455> <55465455>]
+	/Info <<
+		/Producer (pdfrs [test] \(github.com/rkusa/pdfrs\))
+		/CreationDate (D:20190602142800+00'00')
+	>>
+>>
+startxref
+662
+%%EOF

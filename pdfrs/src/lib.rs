@@ -6,6 +6,7 @@ pub mod fonts;
 mod idseq;
 mod page;
 mod stream;
+mod text;
 mod writer;
 
 pub use document::Document;

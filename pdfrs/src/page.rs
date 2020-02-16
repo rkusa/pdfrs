@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use crate::fonts::FontObject;
 use crate::stream::StreamRef;
 use serde::Serialize;
 use serde_pdf::Reference;
@@ -14,6 +17,8 @@ pub struct Pages<'a> {
 #[serde(rename_all = "PascalCase")]
 pub struct Resources<'a> {
     pub proc_set: Vec<&'a str>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub font: HashMap<String, Reference<FontObject<'a>>>,
 }
 
 #[derive(Serialize)]

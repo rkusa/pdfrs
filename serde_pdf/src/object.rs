@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
 use crate::stream::Stream;
@@ -10,9 +11,10 @@ use serde::{ser::SerializeTupleStruct, Serialize, Serializer};
 use std::io;
 use std::rc::Rc;
 
-#[derive(Clone)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct ObjectId(Rc<ObjectIdInner>);
 
+#[derive(PartialEq, Eq, Hash)]
 struct ObjectIdInner {
     id: usize,
     rev: usize,
@@ -136,6 +138,26 @@ where
         s.end()
     }
 }
+
+impl<D> Hash for Reference<D>
+where
+    D: Serialize,
+{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl<D> PartialEq for Reference<D>
+where
+    D: Serialize,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<D> Eq for Reference<D> where D: Serialize {}
 
 #[cfg(test)]
 mod test {
