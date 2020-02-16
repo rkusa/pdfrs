@@ -3,3 +3,6 @@ members = [
     "pdfrs",
     "serde_pdf",
 ]
+
+[patch.crates-io]
+unicode-linebreak = { git = "https://github.com/rkusa/unicode-linebreak.git" }

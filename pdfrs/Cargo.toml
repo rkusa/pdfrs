@@ -5,13 +5,14 @@ authors = ["Markus Ast <m@rkusa.st>"]
 edition = "2018"
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }
-serde_pdf = { path = "../serde_pdf" }
-uuid = { version = "0.8", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 lazy_static = "1.4"
 pdfrs-macros = { path = "../pdfrs-macros", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_pdf = { path = "../serde_pdf" }
 thiserror = "1.0"
+unicode-linebreak = "0.1"
+uuid = { version = "0.8", features = ["v4"] }
 
 [build-dependencies]
 regex = "1.1"

@@ -99,7 +99,15 @@ impl<W: io::Write> Stream<W> {
 
     /// Sets the text matrix (Tm - PDF spec 1.7 page 406).
     #[allow(clippy::many_single_char_names)]
-    pub fn set_text_matrix(&mut self, a: f64, b: f64, c: f64, d: f64, e: f64, f: f64) -> Result<(), io::Error> {
+    pub fn set_text_matrix(
+        &mut self,
+        a: f64,
+        b: f64,
+        c: f64,
+        d: f64,
+        e: f64,
+        f: f64,
+    ) -> Result<(), io::Error> {
         writeln!(
             self,
             "{:.3} {:.3} {:.3} {:.3} {:.3} {:.3} Tm",
