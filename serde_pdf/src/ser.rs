@@ -8,10 +8,10 @@ mod raw;
 use crate::error::{Error, Result};
 use raw::RawEmitter;
 
-pub(crate) const NAME_STREAM: &'static str = "$__pdf_stream";
-pub(crate) const NAME_OBJECT: &'static str = "$__pdf_object";
-pub(crate) const NAME_REFERENCE: &'static str = "$__pdf_reference";
-pub(crate) const NAME_RAW: &'static str = "$__pdf_raw";
+pub(crate) const NAME_STREAM: &str = "$__pdf_stream";
+pub(crate) const NAME_OBJECT: &str = "$__pdf_object";
+pub(crate) const NAME_REFERENCE: &str = "$__pdf_reference";
+pub(crate) const NAME_RAW: &str = "$__pdf_raw";
 
 pub struct Serializer<W>
 where
@@ -200,7 +200,7 @@ where
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<()> {
-        write!(self.output, "stream\n")?;
+        writeln!(self.output, "stream")?;
         self.output.write_all(v)?;
         write!(self.output, "\nendstream")?;
         Ok(())
@@ -319,7 +319,7 @@ where
     }
 
     fn serialize_struct(self, name: &'static str, len: usize) -> Result<Self::SerializeStruct> {
-        write!(self.output, "<<\n")?;
+        writeln!(self.output, "<<")?;
 
         self.depth += 1;
 
@@ -328,7 +328,7 @@ where
             self.serialize_name("Type")?;
             write!(self.output, " ")?;
             self.serialize_name(name)?;
-            write!(self.output, "\n")?;
+            writeln!(self.output)?;
         }
 
         Ok(Compound {
@@ -426,14 +426,14 @@ where
                 if *is_first {
                     *is_first = false;
                 } else {
-                    write!(ser.output, "\n")?;
+                    writeln!(ser.output)?;
                 }
                 value.serialize(&mut **ser)
             }
             TupleStruct::Object { ser, ref mut ix } => {
                 match *ix {
                     1 => write!(ser.output, " ")?,
-                    2 => write!(ser.output, " obj\n")?,
+                    2 => writeln!(ser.output, " obj")?,
                     _ => {}
                 }
                 *ix += 1;
@@ -459,11 +459,11 @@ where
         match self {
             TupleStruct::Compound(s) => s.end(),
             TupleStruct::Stream { ser, .. } => {
-                write!(ser.output, "\n")?;
+                writeln!(ser.output)?;
                 Ok(())
             }
             TupleStruct::Object { ser, .. } => {
-                write!(ser.output, "\nendobj\n\n")?;
+                writeln!(ser.output, "\nendobj\n")?;
                 Ok(())
             }
             TupleStruct::Reference { ser, .. } => {
@@ -516,7 +516,7 @@ where
         write!(self.ser.output, " ")?;
         value.serialize(&mut *self.ser)?;
 
-        write!(self.ser.output, "\n")?;
+        writeln!(self.ser.output)?;
 
         Ok(())
     }

@@ -373,7 +373,7 @@ where
                         return Err(Error::InvalidEscapeSequence);
                     }
                 }
-                0x21..=0x7E => {
+                0x21..=0x22 | 0x24..=0x7E => {
                     self.discard_char();
                     name.push(ch as char);
                 }

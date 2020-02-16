@@ -134,7 +134,6 @@ fn build_font(
     let mut out = BufWriter::new(File::create(&out_path)?);
 
     writeln!(out, "lazy_static! {{")?;
-    writeln!(out, "#[allow(clippy::needless_update)]")?;
     writeln!(out, "pub static ref {}: AfmFont = AfmFont {{", name)?;
 
     let mut parsing_char_metrics = 0;
