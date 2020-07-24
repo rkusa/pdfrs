@@ -61,14 +61,8 @@ impl de::Error for Error {
 }
 
 impl Display for Error {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(std::error::Error::description(self))
-    }
-}
-
-impl std::error::Error for Error {
-    fn description(&self) -> &str {
-        match *self {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(match *self {
             Error::Message(ref msg) => msg,
             Error::Io(_) => "IO error",
             Error::Eof => "unexpected end of input",
@@ -93,9 +87,11 @@ impl std::error::Error for Error {
             Error::NumberOverflow => "Number overflow",
             Error::InvalidEscapeSequence => "Invalid escape sequence in string literal",
             Error::MapKeyMustBeAString => "Map key must be a string",
-        }
+        })
     }
 }
+
+impl std::error::Error for Error {}
 
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Self {
