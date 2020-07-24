@@ -21,8 +21,9 @@ itertools = "0.9"
 Inflector = "0.11"
 
 [dev-dependencies]
-pdfrs-macros = { path = "../pdfrs-macros" }
 async-std = { version = "1.6", features = ["attributes"] }
+pdfrs-macros = { path = "../pdfrs-macros" }
+pretty_assertions = "0.6"
 
 [features]
 default = ["helvetica"]

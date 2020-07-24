@@ -1,1 +1,2 @@
 /pdfrs/tests/fixtures/*.txt text eol=lf
+*.pdf binary

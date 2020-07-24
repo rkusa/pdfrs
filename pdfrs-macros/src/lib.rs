@@ -37,6 +37,15 @@ fn convert(mut input: syn::ItemFn, args: syn::AttributeArgs) -> Result<TokenStre
             use std::io::Write;
             use chrono::{Utc, TimeZone};
 
+            // Source: https://github.com/colin-kiegel/rust-pretty-assertions/issues/24
+            #[derive(PartialEq, Eq)]
+            struct PrettyString<'a>(&'a str);
+            impl<'a> std::fmt::Debug for PrettyString<'a> {
+                fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    f.write_str(self.0)
+                }
+            }
+
             let mut path = std::path::PathBuf::from("./tests/");
             path.push(#path);
             path.set_extension("result.pdf");
@@ -58,8 +67,9 @@ fn convert(mut input: syn::ItemFn, args: syn::AttributeArgs) -> Result<TokenStre
             file.write_all(&result).expect("Error writing result to file");
 
             let expected = include_bytes!(#path);
-            assert!(
-                result.iter().eq(expected.iter()),
+            pretty_assertions::assert_eq!(
+                PrettyString(&String::from_utf8_lossy(&result)),
+                PrettyString(&String::from_utf8_lossy(expected)),
                 "Resulting PDF does not match expected one"
             );
         }
