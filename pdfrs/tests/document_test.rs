@@ -1,13 +1,14 @@
 use pdfrs::fonts::HELVETICA;
 use pdfrs::Document;
+use pdfrs_macros::test as pdf_test;
 use std::fs::File;
 
-#[pdfrs::test("./fixtures/empty.pdf")]
+#[pdf_test("./fixtures/empty.pdf")]
 fn empty(doc: &mut Document<File>) {
     // just testing an empty document here
 }
 
-#[pdfrs::test("./fixtures/basic_text.pdf")]
+#[pdf_test("./fixtures/basic_text.pdf")]
 fn basic_text(doc: &mut Document<File>) {
     // TODO: return result
 

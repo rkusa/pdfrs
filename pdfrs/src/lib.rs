@@ -11,4 +11,3 @@ mod text;
 mod writer;
 
 pub use document::Document;
-pub use pdfrs_macros::test;
