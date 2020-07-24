@@ -31,7 +31,7 @@ fn convert(mut input: syn::ItemFn, args: syn::AttributeArgs) -> Result<TokenStre
     };
 
     let result = quote! {
-        #[test]
+        #[async_std::test]
         #(#attrs)*
         #vis #sig {
             use std::io::Write;
@@ -42,7 +42,7 @@ fn convert(mut input: syn::ItemFn, args: syn::AttributeArgs) -> Result<TokenStre
             path.set_extension("result.pdf");
 
             let mut result = Vec::new();
-            let mut doc = Document::new(&mut result).unwrap();
+            let mut doc = Document::new(&mut result).await.unwrap();
             doc.set_id("test");
             doc.set_creation_date(Utc.ymd(2019, 6, 2).and_hms(14, 28, 0));
             doc.set_producer("pdfrs [test] (github.com/rkusa/pdfrs)");
@@ -52,7 +52,7 @@ fn convert(mut input: syn::ItemFn, args: syn::AttributeArgs) -> Result<TokenStre
                 #body
             }
 
-            doc.end().unwrap();
+            doc.end().await.unwrap();
 
             let mut file = File::create(path).expect("Error creating result file");
             file.write_all(&result).expect("Error writing result to file");

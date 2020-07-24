@@ -3,13 +3,20 @@ use std::{io, mem};
 
 use crate::idseq::IdSeq;
 use crate::stream::{Stream, StreamRef};
+use async_std::io::prelude::{Write, WriteExt};
+use async_std::io::BufWriter;
+use async_std::task::Context;
+use async_std::task::Poll;
+use pin_project::pin_project;
 use serde_pdf::Reference;
+use std::pin::Pin;
 
-/// A type that is always [`Write`](std::io::Write), but either contains a `DocWriter<W>` or a
+/// A type that is always [`Write`](async_std::io::Write), but either contains a `DocWriter<W>` or a
 /// [`Stream`](stream::Stream).
-pub enum Writer<W: io::Write> {
-    Doc(DocWriter<W>),
-    Stream(Stream<W>),
+#[pin_project(project = WriterProj)]
+pub enum Writer<W: Write> {
+    Doc(#[pin] DocWriter<W>),
+    Stream(#[pin] Stream<W>),
     Null,
 }
 
@@ -17,24 +24,26 @@ pub enum Writer<W: io::Write> {
 ///
 /// It keeps track of how many bytes have already been written to correctly reference objects
 /// inside the document.
-pub struct DocWriter<W: io::Write> {
-    w: W,
+#[pin_project]
+pub struct DocWriter<W: Write> {
+    #[pin]
+    w: BufWriter<W>,
     len: usize,
     xref: HashMap<usize, usize>, // <object id, offset>
 }
 
-impl<W: io::Write> Writer<W> {
+impl<W: Write + Unpin> Writer<W> {
     /// Converts the current variant into a `Writer::Stream`.
-    pub fn into_stream(self, id_seq: &mut IdSeq) -> Self {
-        match self {
-            Writer::Doc(w) => Writer::Stream(Stream::new(id_seq, w)),
+    pub async fn into_stream(self, id_seq: &mut IdSeq) -> Result<Writer<W>, io::Error> {
+        Ok(match self {
+            Writer::Doc(w) => Writer::Stream(Stream::new(id_seq, w).await?),
             s => s,
-        }
+        })
     }
 
     /// Ends the current `Stream<W>`, if it is currently one. Returns a reference to the ended
     /// stream.
-    pub fn end_stream(&mut self) -> Result<Option<Reference<StreamRef>>, io::Error> {
+    pub async fn end_stream(&mut self) -> Result<Option<Reference<StreamRef>>, io::Error> {
         let out = mem::replace(&mut *self, Writer::Null);
         match out {
             Writer::Doc(w) => {
@@ -43,7 +52,7 @@ impl<W: io::Write> Writer<W> {
             }
             Writer::Stream(stream) => {
                 let stream_ref = stream.to_reference();
-                *self = Writer::Doc(stream.end()?);
+                *self = Writer::Doc(stream.end().await?);
                 Ok(Some(stream_ref))
             }
             Writer::Null => unreachable!(),
@@ -51,11 +60,11 @@ impl<W: io::Write> Writer<W> {
     }
 }
 
-impl<W: io::Write> DocWriter<W> {
+impl<W: Write + Unpin> DocWriter<W> {
     /// Constructs a new `DocWriter<W>` wrapping the given writer.
     pub fn new(w: W) -> Self {
         DocWriter {
-            w,
+            w: BufWriter::new(w),
             len: 0,
             xref: HashMap::new(),
         }
@@ -73,8 +82,8 @@ impl<W: io::Write> DocWriter<W> {
     }
 
     /// Writes the XREF table into into the wrapped writer of the `DocWriter<W>`.
-    pub fn write_xref(&mut self) -> Result<(), io::Error> {
-        writeln!(self.w, "xref")?;
+    pub async fn write_xref(&mut self) -> Result<(), io::Error> {
+        writeln!(self.w, "xref").await?;
 
         let mut from = 0;
         let mut to = 1;
@@ -85,14 +94,14 @@ impl<W: io::Write> DocWriter<W> {
                 offsets.push(offset);
             } else {
                 if from == 0 || !offsets.is_empty() {
-                    writeln!(self.w, "{} {}", from, to - from)?;
+                    writeln!(self.w, "{} {}", from, to - from).await?;
 
                     if from == 0 {
-                        writeln!(self.w, "0000000000 65535 f")?;
+                        writeln!(self.w, "0000000000 65535 f").await?;
                     }
 
                     for offset in &offsets {
-                        writeln!(self.w, "{:010} 00000 n", offset)?;
+                        writeln!(self.w, "{:010} 00000 n", offset).await?;
                     }
                 }
 
@@ -111,36 +120,59 @@ impl<W: io::Write> DocWriter<W> {
     }
 }
 
-impl<W: io::Write> io::Write for Writer<W> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
-        match self {
-            Writer::Doc(w) => w.write(buf),
-            Writer::Stream(w) => w.write(buf),
-            Writer::Null => unreachable!(),
+impl<W: Write + Unpin> Write for Writer<W> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        match self.project() {
+            WriterProj::Doc(w) => w.poll_write(cx, buf),
+            WriterProj::Stream(w) => w.poll_write(cx, buf),
+            WriterProj::Null => unreachable!(),
         }
     }
 
-    fn flush(&mut self) -> Result<(), io::Error> {
-        match self {
-            Writer::Doc(w) => w.flush(),
-            Writer::Stream(w) => w.flush(),
-            Writer::Null => unreachable!(),
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.project() {
+            WriterProj::Doc(w) => w.poll_flush(cx),
+            WriterProj::Stream(w) => w.poll_flush(cx),
+            WriterProj::Null => unreachable!(),
+        }
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.project() {
+            WriterProj::Doc(w) => w.poll_close(cx),
+            WriterProj::Stream(w) => w.poll_close(cx),
+            WriterProj::Null => unreachable!(),
         }
     }
 }
 
-impl<W> io::Write for DocWriter<W>
-where
-    W: io::Write,
-{
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
-        let len = self.w.write(buf)?;
-        self.len += len;
-        Ok(len)
+impl<W: Write + Unpin> Write for DocWriter<W> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        let project = self.project();
+        match project.w.poll_write(cx, buf) {
+            Poll::Ready(result) => {
+                let len = result?;
+                *project.len += len;
+                Poll::Ready(Ok(len))
+            }
+            Poll::Pending => Poll::Pending,
+        }
     }
 
-    fn flush(&mut self) -> Result<(), io::Error> {
-        self.w.flush()
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        self.project().w.poll_flush(cx)
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        self.project().w.poll_close(cx)
     }
 }
 
@@ -148,8 +180,8 @@ where
 mod test {
     use super::*;
 
-    #[test]
-    fn xref_1() {
+    #[async_std::test]
+    async fn xref_1() {
         let mut b = Vec::new();
         let mut w = DocWriter::new(&mut b);
 
@@ -160,15 +192,15 @@ mod test {
         w.xref.insert(5, 331);
         w.xref.insert(6, 409);
 
-        w.write_xref().unwrap();
+        w.write_xref().await.unwrap();
         assert_eq!(
             String::from_utf8_lossy(&b).to_string(),
             include_str!("../tests/fixtures/xref_1.txt"),
         );
     }
 
-    #[test]
-    fn xref_2() {
+    #[async_std::test]
+    async fn xref_2() {
         let mut b = Vec::new();
         let mut w = DocWriter::new(&mut b);
 
@@ -177,7 +209,7 @@ mod test {
         w.xref.insert(24, 25635);
         w.xref.insert(30, 25777);
 
-        w.write_xref().unwrap();
+        w.write_xref().await.unwrap();
         assert_eq!(
             String::from_utf8_lossy(&b).to_string(),
             include_str!("../tests/fixtures/xref_2.txt"),

@@ -1,18 +1,24 @@
-use std::io::{self, Write};
+use std::io;
 
 use crate::idseq::IdSeq;
 use crate::writer::DocWriter;
+use async_std::io::{prelude::WriteExt, Write};
+use async_std::task::Context;
+use async_std::task::Poll;
+use pin_project::pin_project;
 use serde::Serialize;
-use serde_pdf::{to_writer, Object, ObjectId, Reference};
+use serde_pdf::{Object, ObjectId, Reference};
+use std::pin::Pin;
 
 /// A type used to handle writing a PDF stream to a PDF document. It handles creating a
 /// corresponding PDF object, keeping track of the stream's length as well as writing the stream
 /// it all it's related meta data to the PDF document.
-pub struct Stream<W: io::Write> {
+#[pin_project]
+pub struct Stream<W: Write> {
     id: ObjectId,
     len_obj_id: ObjectId,
     len: usize,
-    header_written: bool,
+    #[pin]
     wr: DocWriter<W>,
 }
 
@@ -27,16 +33,17 @@ pub struct StreamMeta {
 /// A type used to create PDF references (`Reference<StreamRef>`).
 pub type StreamRef = ();
 
-impl<W: io::Write> Stream<W> {
+impl<W: Write + Unpin> Stream<W> {
     /// Constructs a new PDF stream.
-    pub fn new(id_seq: &mut IdSeq, wr: DocWriter<W>) -> Self {
-        Stream {
+    pub async fn new(id_seq: &mut IdSeq, wr: DocWriter<W>) -> Result<Stream<W>, io::Error> {
+        let mut stream = Stream {
             id: ObjectId::new(id_seq.next(), 0),
             len_obj_id: ObjectId::new(id_seq.next(), 0),
             len: 0,
-            header_written: false,
             wr,
-        }
+        };
+        stream.write_header().await?;
+        Ok(stream)
     }
 
     /// Returns a PDF reference to the stream's PDF object.
@@ -46,60 +53,53 @@ impl<W: io::Write> Stream<W> {
 
     /// Writes the stream's and its corresponding object's start markers, as well as writing its
     /// object properties (which includes a reference to its length object).
-    fn write_header(&mut self) -> Result<(), io::Error> {
-        if !self.header_written {
-            self.header_written = true;
-
-            self.wr.add_xref(self.id.id());
-            writeln!(self.wr, "{} {} obj", self.id.id(), self.id.rev())?;
-            to_writer(
-                &mut self.wr,
-                &StreamMeta {
-                    length: Reference::new(self.len_obj_id.clone()),
-                },
-            )
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-            writeln!(self.wr, "\nstream")?;
-        }
+    async fn write_header(&mut self) -> Result<(), io::Error> {
+        self.wr.add_xref(self.id.id());
+        writeln!(self.wr, "{} {} obj", self.id.id(), self.id.rev()).await?;
+        to_async_writer(
+            &mut self.wr,
+            &StreamMeta {
+                length: Reference::new(self.len_obj_id.clone()),
+            },
+        )
+        .await
+        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+        writeln!(self.wr, "\nstream").await?;
 
         Ok(())
     }
 
     /// Ends the PDF stream, which involves writing the stream's and corresponding object's end
     /// markers and the stream's length object.
-    pub fn end(mut self) -> Result<DocWriter<W>, io::Error> {
-        if self.len == 0 {
-            return Ok(self.wr);
-        }
-
-        self.write_header()?;
+    pub async fn end(mut self) -> Result<DocWriter<W>, io::Error> {
         if self.len > 0 {
-            writeln!(self.wr)?;
+            writeln!(self.wr).await?;
         }
-        writeln!(self.wr, "endstream\nendobj\n")?;
+        writeln!(self.wr, "endstream\nendobj\n").await?;
 
         self.wr.add_xref(self.len_obj_id.id());
         let len_obj = Object::new(self.len_obj_id.id(), self.len_obj_id.rev(), self.len);
-        to_writer(&mut self.wr, &len_obj)
+        to_async_writer(&mut self.wr, &len_obj)
+            .await
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
         Ok(self.wr)
     }
 
     /// Begins a text object (BT - PDF spec 1.7 page 405).
-    pub fn begin_text(&mut self) -> Result<(), io::Error> {
+    pub async fn begin_text(&mut self) -> Result<(), io::Error> {
         // FIXME: move text operations into an object returned here to prevent nested BT.
-        writeln!(self, "BT")
+        writeln!(self, "BT").await
     }
 
     /// Ends a text object (ET - PDF spec 1.7 page 405).
-    pub fn end_text(&mut self) -> Result<(), io::Error> {
-        writeln!(self, "ET")
+    pub async fn end_text(&mut self) -> Result<(), io::Error> {
+        writeln!(self, "ET").await
     }
 
     /// Sets the text matrix (Tm - PDF spec 1.7 page 406).
     #[allow(clippy::many_single_char_names)]
-    pub fn set_text_matrix(
+    pub async fn set_text_matrix(
         &mut self,
         a: f64,
         b: f64,
@@ -113,37 +113,57 @@ impl<W: io::Write> Stream<W> {
             "{:.3} {:.3} {:.3} {:.3} {:.3} {:.3} Tm",
             a, b, c, d, e, f
         )
+        .await
     }
 
     /// Sets the text leading (TL - PDF spec 1.7 page 398).
-    pub fn set_text_leading(&mut self, leading: f64) -> Result<(), io::Error> {
-        writeln!(self, "{:.3} TL", leading)
+    pub async fn set_text_leading(&mut self, leading: f64) -> Result<(), io::Error> {
+        writeln!(self, "{:.3} TL", leading).await
     }
 
     /// Sets the text font and font size (Tf - PDF spec 1.7 page 398).
-    pub fn set_text_font(&mut self, font_id: usize, size: f64) -> Result<(), io::Error> {
-        writeln!(self, "/F{} {:.3} Tf", font_id, size)
+    pub async fn set_text_font(&mut self, font_id: usize, size: f64) -> Result<(), io::Error> {
+        writeln!(self, "/F{} {:.3} Tf", font_id, size).await
     }
 
     // Sets the color to use for non-stroking operations (sc - PDF spec 1.7 page 287).
-    pub fn set_fill_color(&mut self, c1: f64, c2: f64, c3: f64) -> Result<(), io::Error> {
-        writeln!(self, "{:.3} {:.3} {:.3} sc", c1, c2, c3)
+    pub async fn set_fill_color(&mut self, c1: f64, c2: f64, c3: f64) -> Result<(), io::Error> {
+        writeln!(self, "{:.3} {:.3} {:.3} sc", c1, c2, c3).await
     }
 }
 
-impl<W> io::Write for Stream<W>
+impl<W: Write + Unpin> Write for Stream<W> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        let project = self.project();
+        match project.wr.poll_write(cx, buf) {
+            Poll::Ready(result) => {
+                let len = result?;
+                *project.len += len;
+                Poll::Ready(Ok(len))
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        self.project().wr.poll_flush(cx)
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        self.project().wr.poll_close(cx)
+    }
+}
+
+pub async fn to_async_writer<W, T>(mut w: W, value: &T) -> Result<(), serde_pdf::Error>
 where
-    W: io::Write,
+    W: async_std::io::Write + Unpin,
+    T: Serialize,
 {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
-        self.write_header()?;
-
-        let n = self.wr.write(buf)?;
-        self.len += n;
-        Ok(n)
-    }
-
-    fn flush(&mut self) -> Result<(), io::Error> {
-        self.wr.flush()
-    }
+    let s = serde_pdf::to_string(value)?;
+    w.write_all(s.as_bytes()).await?;
+    Ok(())
 }
