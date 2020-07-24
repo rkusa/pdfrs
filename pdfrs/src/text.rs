@@ -1,7 +1,8 @@
 use std::io::{self};
 
+use crate::fonts::HELVETICA;
 use crate::stream::Stream;
-use async_std::io::prelude::{Write, WriteExt};
+use async_std::io::prelude::Write;
 
 // TODO: non-Arc font
 pub async fn write_text<W: Write + Unpin>(
@@ -15,7 +16,7 @@ pub async fn write_text<W: Write + Unpin>(
     wr.set_text_leading(10.175).await?;
     wr.set_text_font(font_id, 11.0).await?;
     wr.set_fill_color(0.0, 0.0, 0.0).await?;
-    writeln!(wr, "[(Hello) -278.000 (W) 30.000 (or) -15.000 (ld)] TJ").await?;
+    wr.show_text_string("Hello World", &*HELVETICA).await?;
     wr.end_text().await?;
 
     Ok(())

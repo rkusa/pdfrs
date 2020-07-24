@@ -1,8 +1,12 @@
+use std::io;
+
 use serde::Serialize;
 
 pub trait Font {
     fn base_name(&self) -> &str;
     fn object(&self) -> FontObject<'_>;
+    fn kerning(&self, lhs: char, rhs: char) -> Option<i32>;
+    fn encode(&self, text: &str, buf: &mut Vec<u8>) -> Result<(), io::Error>;
 }
 
 #[derive(Serialize)]

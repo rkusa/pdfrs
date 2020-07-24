@@ -1,5 +1,6 @@
 use std::io;
 
+use crate::fonts::Font;
 use crate::idseq::IdSeq;
 use crate::writer::DocWriter;
 use async_std::io::{prelude::WriteExt, Write};
@@ -130,6 +131,13 @@ impl<W: Write + Unpin> Stream<W> {
     pub async fn set_fill_color(&mut self, c1: f64, c2: f64, c3: f64) -> Result<(), io::Error> {
         writeln!(self, "{:.3} {:.3} {:.3} sc", c1, c2, c3).await
     }
+
+    pub async fn show_text_string(&mut self, text: &str, font: &dyn Font) -> Result<(), io::Error> {
+        write!(self, "[").await?;
+        position_glyphs(text, font, self).await?;
+        writeln!(self, "] TJ").await?;
+        Ok(())
+    }
 }
 
 impl<W: Write + Unpin> Write for Stream<W> {
@@ -166,4 +174,43 @@ where
     let s = serde_pdf::to_string(value)?;
     w.write_all(s.as_bytes()).await?;
     Ok(())
+}
+
+async fn position_glyphs<W: Write + Unpin>(
+    text: &str,
+    font: &dyn Font,
+    out: &mut W,
+) -> Result<(), io::Error> {
+    let mut prev = None;
+    let mut offset = 0;
+    let mut buf = Vec::with_capacity(text.len().min(16));
+    for (i, c) in text.char_indices() {
+        if let Some(kerning) = prev.and_then(|p| font.kerning(p, c)) {
+            font.encode(&text[offset..i], &mut buf)?;
+            out.write_all(&buf).await?;
+            write!(out, " {} ", -kerning).await?;
+            offset = i;
+        }
+        prev = Some(c);
+    }
+    if offset < text.len() {
+        font.encode(&text[offset..], &mut buf)?;
+        out.write_all(&buf).await?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::position_glyphs;
+    use crate::fonts::HELVETICA;
+
+    #[async_std::test]
+    async fn test_position_glyphs() {
+        let mut buf = Vec::new();
+        position_glyphs("Hello World", &*HELVETICA, &mut buf)
+            .await
+            .unwrap();
+        assert_eq!(&String::from_utf8_lossy(&buf), "(Hello W) 30 (or) -15 (ld)");
+    }
 }
