@@ -1,5 +1,6 @@
 .*
 !.gitignore
+!.github
 target
 **/*.rs.bk
 Cargo.lock
