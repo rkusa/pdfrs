@@ -4,6 +4,8 @@ use super::style::Style;
 use unicode_linebreak::{linebreaks_iter, BreakOpportunity};
 
 /// A type that contains a text paragraph, which consists of chunks of styled text.
+// TODO: remove allow(unused)
+#[allow(unused)]
 pub struct Paragraph<'a> {
     pub children: Vec<TextNode<'a>>,
 }
@@ -25,6 +27,8 @@ struct TextChunk<'a> {
 
 impl<'a> Paragraph<'a> {
     /// Splits the paragraph into text nodes by possible line-breaks.
+    // TODO: remove allow(unused)
+    #[allow(unused)]
     fn chunks(&'a self) -> impl Iterator<Item = TextChunk<'a>> {
         let mut linebreaks = linebreaks_iter(self.children.iter().map(|node| node.text));
         let mut next_break = linebreaks.next();

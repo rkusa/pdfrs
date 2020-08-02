@@ -1,6 +1,8 @@
 [workspace]
 members = [
+    "otf",
     "pdfrs",
+    "pdfrs-macros",
     "serde_pdf",
 ]
 
