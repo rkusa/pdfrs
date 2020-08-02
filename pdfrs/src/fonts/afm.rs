@@ -47,9 +47,9 @@ impl Font for AfmFont {
         buf.push(b'(');
         for c in text.chars() {
             match c {
-                '\\' => buf.extend_from_slice("\\\\".as_bytes()),
-                '(' => buf.extend_from_slice("\\(".as_bytes()),
-                ')' => buf.extend_from_slice("\\)".as_bytes()),
+                '\\' => buf.extend_from_slice(b"\\\\"),
+                '(' => buf.extend_from_slice(b"\\("),
+                ')' => buf.extend_from_slice(b"\\)"),
                 c => buf.push(c as u8),
             }
         }

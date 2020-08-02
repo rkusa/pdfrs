@@ -157,7 +157,7 @@ where
             let id = ObjectId::new(RESERVED_PAGES_ID, 0);
             let reference: Reference<Pages<'_>> = Reference::new(id);
 
-            let mut page_state = mem::replace(&mut self.page_state, PageState::default());
+            let mut page_state = mem::take(&mut self.page_state);
             page_state.contents.push(content_ref);
 
             let page = Page {
