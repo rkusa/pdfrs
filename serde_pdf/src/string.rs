@@ -119,25 +119,25 @@ mod test {
     use crate::ser::to_string;
 
     #[test]
-    fn serialize_hex_string() {
+    fn test_serialize_hex_string() {
         let s = PdfString::Hex(String::from("foobar"));
         assert_eq!(to_string(&s).unwrap(), "<475050434253>");
     }
 
     #[test]
-    fn serialize_hex_str() {
+    fn test_serialize_hex_str() {
         let s = PdfStr::Hex("foobar");
         assert_eq!(to_string(&s).unwrap(), "<475050434253>");
     }
 
     #[test]
-    fn serialize_literal_string() {
+    fn test_serialize_literal_string() {
         let s = PdfString::Literal(String::from(r#"0ab(\fo)?!€"#));
         assert_eq!(to_string(&s).unwrap(), r#"(0ab\(\\fo\)?!\200)"#);
     }
 
     #[test]
-    fn serialize_literal_str() {
+    fn test_serialize_literal_str() {
         let s = PdfStr::Literal(r#"0ab(\fo)?!€"#);
         assert_eq!(to_string(&s).unwrap(), r#"(0ab\(\\fo\)?!\200)"#);
     }

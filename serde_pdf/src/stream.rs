@@ -62,7 +62,7 @@ mod test {
     use crate::ser::to_string;
 
     #[test]
-    fn serialize() {
+    fn test_serialize() {
         let mut dict: HashMap<String, Value> = HashMap::new();
         dict.insert("foo".to_string(), Value::String("bar".to_string()));
 
@@ -77,7 +77,7 @@ mod test {
     }
 
     #[test]
-    fn serialize_dict_only() {
+    fn test_serialize_dict_only() {
         let mut dict: HashMap<String, Value> = HashMap::new();
         dict.insert("foo".to_string(), Value::String("bar".to_string()));
 

@@ -63,7 +63,7 @@ mod test {
     use crate::fonts::{Font, HELVETICA};
 
     #[test]
-    fn encode_basic() {
+    fn test_encode_basic() {
         let mut buf = Vec::new();
         HELVETICA.encode("Hello", &mut buf).unwrap();
         assert_eq!(buf.as_slice(), b"(Hello)");
@@ -71,7 +71,7 @@ mod test {
     }
 
     #[test]
-    fn encode_reserved_characters() {
+    fn test_encode_reserved_characters() {
         let mut buf = Vec::new();
         HELVETICA.encode("Hello \\(World)", &mut buf).unwrap();
         assert_eq!(&String::from_utf8_lossy(&buf), "(Hello \\\\\\(World\\))");

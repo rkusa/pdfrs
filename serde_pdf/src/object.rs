@@ -165,7 +165,7 @@ mod test {
     use crate::ser::to_string;
 
     #[test]
-    fn serialize_object() {
+    fn test_serialize_object() {
         let obj: Object<()> = Object {
             id: ObjectId::new(3, 1),
             ..Object::default()
@@ -174,7 +174,7 @@ mod test {
     }
 
     #[test]
-    fn serialize_reference() {
+    fn test_serialize_reference() {
         let obj: Object<()> = Object {
             id: ObjectId::new(3, 1),
             ..Object::default()

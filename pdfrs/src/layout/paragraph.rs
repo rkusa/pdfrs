@@ -92,7 +92,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn paragraph_chunks_optional_break() {
+    fn test_paragraph_chunks_optional_break() {
         let style = Style {
             font: &*crate::fonts::HELVETICA,
         };
@@ -122,7 +122,7 @@ mod test {
     }
 
     #[test]
-    fn paragraph_chunks_mandatory_break() {
+    fn test_paragraph_chunks_mandatory_break() {
         let style = Style {
             font: &*crate::fonts::HELVETICA,
         };
@@ -152,7 +152,7 @@ mod test {
     }
 
     #[test]
-    fn paragraph_chunks_multiple_text_nodes() {
+    fn test_paragraph_chunks_multiple_text_nodes() {
         let style = Style {
             font: &*crate::fonts::HELVETICA,
         };
@@ -188,7 +188,7 @@ mod test {
     }
 
     #[test]
-    fn paragraph_chunks_two_nodes_without_breaks() {
+    fn test_paragraph_chunks_two_nodes_without_breaks() {
         let style = Style {
             font: &*crate::fonts::HELVETICA,
         };
@@ -224,7 +224,7 @@ mod test {
     }
 
     #[test]
-    fn paragraph_chunks_three_nodes_without_breaks() {
+    fn test_paragraph_chunks_three_nodes_without_breaks() {
         let style = Style {
             font: &*crate::fonts::HELVETICA,
         };

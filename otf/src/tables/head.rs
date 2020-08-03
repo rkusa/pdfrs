@@ -91,7 +91,7 @@ mod test {
     use crate::OffsetTable;
 
     #[test]
-    fn head_table_encode_decode() {
+    fn test_head_table_encode_decode() {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf");
         let mut cursor = Cursor::new(data.to_vec());
         let table = OffsetTable::unpack(&mut cursor).unwrap();

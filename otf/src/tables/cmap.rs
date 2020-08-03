@@ -128,7 +128,7 @@ mod test {
     use crate::OffsetTable;
 
     #[test]
-    fn cmap_table_encode_decode() {
+    fn test_cmap_table_encode_decode() {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf");
         let mut cursor = Cursor::new(data.to_vec());
         let table = OffsetTable::unpack(&mut cursor).unwrap();
@@ -147,7 +147,7 @@ mod test {
     }
 
     #[test]
-    fn limit_read() {
+    fn test_limit_read() {
         let data = "foobar".as_bytes().to_vec();
         let mut rd = LimitRead::new(Cursor::new(data), 5);
 

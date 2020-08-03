@@ -42,7 +42,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn limit_read() {
+    fn test_limit_read() {
         let data = "foobar".as_bytes().to_vec();
         let mut rd = LimitRead::new(Cursor::new(data), 5);
 

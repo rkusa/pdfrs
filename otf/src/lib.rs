@@ -188,7 +188,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn offset_table_encode_decode() {
+    fn test_offset_table_encode_decode() {
         let data = include_bytes!("../tests/fonts/Iosevka/iosevka-regular.ttf");
         let table = OffsetTable::unpack(&mut Cursor::new(data.to_vec())).unwrap();
         assert_eq!(table.sfnt_version, SfntVersion::TrueType);
