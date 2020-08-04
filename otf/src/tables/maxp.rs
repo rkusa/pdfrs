@@ -55,7 +55,16 @@ pub struct TrueTypeMaxpTable {
     max_component_depth: u16,
 }
 
-impl Packed for MaxpTable {
+impl MaxpTable {
+    pub fn num_glyphs(&self) -> u16 {
+        match self {
+            MaxpTable::CFF(table) => table.num_glyphs,
+            MaxpTable::TrueType(table) => table.num_glyphs,
+        }
+    }
+}
+
+impl<'a> Packed<'a> for MaxpTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -70,7 +79,7 @@ impl Packed for MaxpTable {
         }
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         match self {
             MaxpTable::CFF(table) => {
                 // version
@@ -88,7 +97,7 @@ impl Packed for MaxpTable {
     }
 }
 
-impl Packed for CffMaxpTable {
+impl<'a> Packed<'a> for CffMaxpTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -97,13 +106,13 @@ impl Packed for CffMaxpTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.num_glyphs)?;
         Ok(())
     }
 }
 
-impl Packed for TrueTypeMaxpTable {
+impl<'a> Packed<'a> for TrueTypeMaxpTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -125,7 +134,7 @@ impl Packed for TrueTypeMaxpTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.num_glyphs)?;
         wr.write_u16::<BigEndian>(self.max_points)?;
         wr.write_u16::<BigEndian>(self.max_contours)?;

@@ -15,6 +15,7 @@ pub struct OpenTypeFont {
     cmap_table: tables::cmap::CmapTable,
     head_table: tables::head::HeadTable,
     hhea_table: tables::hhea::HheaTable,
+    hmtx_table: tables::hmtx::HmtxTable,
     maxp_table: tables::maxp::MaxpTable,
 }
 
@@ -23,11 +24,18 @@ impl OpenTypeFont {
         let mut cursor = Cursor::new(data.as_ref());
         let offset_table = OffsetTable::unpack(&mut cursor, ())?;
 
+        let hhea_table = offset_table.unpack_required_table("hhea", (), &mut cursor)?;
+        let maxp_table = offset_table.unpack_required_table("maxp", (), &mut cursor)?;
         Ok(OpenTypeFont {
             cmap_table: offset_table.unpack_required_table("cmap", (), &mut cursor)?,
             head_table: offset_table.unpack_required_table("head", (), &mut cursor)?,
-            hhea_table: offset_table.unpack_required_table("hhea", (), &mut cursor)?,
-            maxp_table: offset_table.unpack_required_table("maxp", (), &mut cursor)?,
+            hmtx_table: offset_table.unpack_required_table(
+                "hmtx",
+                (&hhea_table, &maxp_table),
+                &mut cursor,
+            )?,
+            hhea_table,
+            maxp_table,
             offset_table,
         })
     }
@@ -40,6 +48,8 @@ impl OpenTypeFont {
         self.cmap_table.pack(&mut wr, ())?;
         self.head_table.pack(&mut wr, ())?;
         self.hhea_table.pack(&mut wr, ())?;
+        self.hmtx_table
+            .pack(&mut wr, (&self.hhea_table, &self.maxp_table))?;
         self.maxp_table.pack(&mut wr, ())?;
 
         Ok(())
@@ -65,7 +75,7 @@ impl OffsetTable {
             .and_then(|i| self.tables.get(i))
     }
 
-    fn unpack_table<T, R, D>(
+    fn unpack_table<'a, T, R, D>(
         &self,
         tag: &str,
         dep: D,
@@ -73,7 +83,7 @@ impl OffsetTable {
     ) -> Result<Option<T>, io::Error>
     where
         R: io::Read + AsRef<[u8]>,
-        T: Packed<Dep = D>,
+        T: Packed<'a, Dep = D>,
     {
         // TODO: return Option for non-required tables?
         let record = match self.get_table_record(tag) {
@@ -85,7 +95,7 @@ impl OffsetTable {
         Ok(Some(T::unpack(&mut limit_read, dep)?))
     }
 
-    fn unpack_required_table<T, R, D>(
+    fn unpack_required_table<'a, T, R, D>(
         &self,
         tag: &str,
         dep: D,
@@ -93,14 +103,14 @@ impl OffsetTable {
     ) -> Result<T, io::Error>
     where
         R: io::Read + AsRef<[u8]>,
-        T: Packed<Dep = D>,
+        T: Packed<'a, Dep = D>,
     {
         self.unpack_table::<T, R, D>(tag, dep, cursor)?
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, format!("{} table missing", tag)))
     }
 }
 
-impl Packed for OffsetTable {
+impl<'a> Packed<'a> for OffsetTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -125,7 +135,7 @@ impl Packed for OffsetTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         self.sfnt_version.pack(&mut wr)?;
         wr.write_u16::<BigEndian>(self.num_tables)?;
 

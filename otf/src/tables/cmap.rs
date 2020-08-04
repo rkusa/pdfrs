@@ -34,7 +34,7 @@ pub struct CmapTable {
     encoding_records: Vec<EncodingRecord>,
 }
 
-impl Packed for CmapTable {
+impl<'a> Packed<'a> for CmapTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -68,7 +68,7 @@ impl Packed for CmapTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.version)?;
         wr.write_u16::<BigEndian>(self.num_tables)?;
         for table in &self.encoding_records {
@@ -86,7 +86,7 @@ pub struct EncodingRecord {
     offset: u32,
 }
 
-impl Packed for EncodingRecord {
+impl<'a> Packed<'a> for EncodingRecord {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -97,7 +97,7 @@ impl Packed for EncodingRecord {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.platform_id)?;
         wr.write_u16::<BigEndian>(self.encoding_id)?;
         wr.write_u32::<BigEndian>(self.offset)?;
@@ -122,7 +122,7 @@ impl Subtable {
     }
 }
 
-impl Packed for Subtable {
+impl<'a> Packed<'a> for Subtable {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -151,7 +151,7 @@ impl Packed for Subtable {
         }
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         let mut buf = Vec::new();
         match self {
             Subtable::Format4(subtable) => subtable.pack(&mut buf, ())?,

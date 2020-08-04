@@ -10,37 +10,37 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 #[derive(Debug, PartialEq)]
 pub struct HheaTable {
     /// Major version number of the horizontal header table — set to 1.
-    major_version: u16,
+    pub major_version: u16,
     /// Minor version number of the horizontal header table — set to 0.
-    minor_version: u16,
+    pub minor_version: u16,
     /// Distance from baseline of highest ascender.
-    ascent: i16,
+    pub ascent: i16,
     /// Distance from baseline of lowest descender
-    descent: i16,
+    pub descent: i16,
     /// Typographic line gap.
-    line_gap: i16,
+    pub line_gap: i16,
     /// Maximum advance width value in 'hmtx' table.
-    advance_width_max: u16,
+    pub advance_width_max: u16,
     /// Minimum left sidebearing value in 'hmtx' table.
-    min_left_side_bearing: i16,
+    pub min_left_side_bearing: i16,
     /// Minimum right sidebearing value; calculated as Min(aw - lsb - (xMax - xMin)).
-    min_right_side_bearing: i16,
+    pub min_right_side_bearing: i16,
     /// Max(lsb + (xMax - xMin)).
-    x_max_extent: i16,
+    pub x_max_extent: i16,
     /// Used to calculate the slope of the cursor (rise/run); 1 for vertical.
-    caret_slope_rise: i16,
+    pub caret_slope_rise: i16,
     /// 0 for vertical.
-    caret_slope_run: i16,
+    pub caret_slope_run: i16,
     /// The amount by which a slanted highlight on a glyph needs to be shifted to produce the best
     /// appearance.
-    caret_offset: i16,
+    pub caret_offset: i16,
     /// 0 for current format.
-    metric_data_format: i16,
+    pub metric_data_format: i16,
     /// Number of hMetric entries in 'hmtx' table
-    number_of_h_metrics: u16,
+    pub number_of_h_metrics: u16,
 }
 
-impl Packed for HheaTable {
+impl<'a> Packed<'a> for HheaTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -79,7 +79,7 @@ impl Packed for HheaTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         // TODO: update values based on hmax table
         wr.write_u16::<BigEndian>(self.major_version)?;
         wr.write_u16::<BigEndian>(self.minor_version)?;

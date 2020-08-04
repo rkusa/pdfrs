@@ -41,7 +41,7 @@ impl Format12 {
     }
 }
 
-impl Packed for Format12 {
+impl<'a> Packed<'a> for Format12 {
     type Dep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -60,7 +60,7 @@ impl Packed for Format12 {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u32::<BigEndian>(self.language)?;
         wr.write_u32::<BigEndian>(self.sequential_map_groups.len() as u32)?;
         for group in &self.sequential_map_groups {
@@ -77,7 +77,7 @@ pub struct SequentialMapGroup {
     start_glyph_id: u32,
 }
 
-impl Packed for SequentialMapGroup {
+impl<'a> Packed<'a> for SequentialMapGroup {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -88,7 +88,7 @@ impl Packed for SequentialMapGroup {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u32::<BigEndian>(self.start_char_code)?;
         wr.write_u32::<BigEndian>(self.end_char_code)?;
         wr.write_u32::<BigEndian>(self.start_glyph_id)?;

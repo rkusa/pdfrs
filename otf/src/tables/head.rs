@@ -26,7 +26,7 @@ pub struct HeadTable {
     glyph_data_format: i16,
 }
 
-impl Packed for HeadTable {
+impl<'a> Packed<'a> for HeadTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -58,7 +58,7 @@ impl Packed for HeadTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.major_version)?;
         wr.write_u16::<BigEndian>(self.minor_version)?;
         wr.write_i16::<BigEndian>(self.font_revision.0)?;

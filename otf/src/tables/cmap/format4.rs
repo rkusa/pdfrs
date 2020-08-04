@@ -64,7 +64,7 @@ impl Format4 {
     }
 }
 
-impl Packed for Format4 {
+impl<'a> Packed<'a> for Format4 {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -103,7 +103,7 @@ impl Packed for Format4 {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.language)?;
         wr.write_u16::<BigEndian>(self.seg_count_x2)?;
         let search_range = 2 * 2u16.pow(((self.seg_count_x2 / 2) as f32).log2().floor() as u32);
