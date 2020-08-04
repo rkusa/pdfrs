@@ -34,9 +34,6 @@ impl Packed for HeadTable {
         let decimal = rd.read_i16::<BigEndian>()?;
         let fraction = rd.read_u16::<BigEndian>()?;
 
-        // const decimal = dataView.getInt16(offset, false);
-        // const fraction = dataView.getUint16(offset + 2, false);
-        // return decimal + fraction / 65535;
         Ok(HeadTable {
             major_version,
             minor_version,
@@ -92,38 +89,38 @@ mod test {
 
     #[test]
     fn test_head_table_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf");
-        let mut cursor = Cursor::new(data.to_vec());
+        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor).unwrap();
-        let head_record = table.get_table_record("head").unwrap();
+        let head_table: HeadTable = table.unpack_required_table("head", &mut cursor).unwrap();
 
-        cursor.set_position(head_record.offset as u64);
-        let head = HeadTable::unpack(&mut cursor).unwrap();
-
-        assert_eq!(head.major_version, 1);
-        assert_eq!(head.minor_version, 0);
+        assert_eq!(head_table.major_version, 1);
+        assert_eq!(head_table.minor_version, 0);
         // font_revision = 3.031
-        assert_eq!(head.font_revision.0, 3);
-        assert!((head.font_revision.1 as f32 / 65535.0 - 0.031).abs() < 0.00001);
-        assert_eq!(head.check_sum_adjustment, 3547005195);
-        assert_eq!(head.magic_number, 1594834165);
-        assert_eq!(head.flags, 13);
-        assert_eq!(head.units_per_em, 1000);
-        assert_eq!(head.created, 3562553439);
-        assert_eq!(head.modified, 3678044538);
-        assert_eq!(head.x_min, -1000);
-        assert_eq!(head.y_min, -505);
-        assert_eq!(head.x_max, 1134);
-        assert_eq!(head.y_max, 1188);
-        assert_eq!(head.mac_style, 0);
-        assert_eq!(head.lowest_rec_ppem, 8);
-        assert_eq!(head.font_direction_hint, 0);
-        assert_eq!(head.index_to_loc_format, 1);
-        assert_eq!(head.glyph_data_format, 0);
+        assert_eq!(head_table.font_revision.0, 3);
+        assert!((head_table.font_revision.1 as f32 / 65535.0 - 0.031).abs() < 0.00001);
+        assert_eq!(head_table.check_sum_adjustment, 3547005195);
+        assert_eq!(head_table.magic_number, 1594834165);
+        assert_eq!(head_table.flags, 13);
+        assert_eq!(head_table.units_per_em, 1000);
+        assert_eq!(head_table.created, 3562553439);
+        assert_eq!(head_table.modified, 3678044538);
+        assert_eq!(head_table.x_min, -1000);
+        assert_eq!(head_table.y_min, -505);
+        assert_eq!(head_table.x_max, 1134);
+        assert_eq!(head_table.y_max, 1188);
+        assert_eq!(head_table.mac_style, 0);
+        assert_eq!(head_table.lowest_rec_ppem, 8);
+        assert_eq!(head_table.font_direction_hint, 0);
+        assert_eq!(head_table.index_to_loc_format, 1);
+        assert_eq!(head_table.glyph_data_format, 0);
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        head.pack(&mut buffer).unwrap();
-        assert_eq!(HeadTable::unpack(&mut Cursor::new(buffer)).unwrap(), head);
+        head_table.pack(&mut buffer).unwrap();
+        assert_eq!(
+            HeadTable::unpack(&mut Cursor::new(buffer)).unwrap(),
+            head_table
+        );
     }
 }

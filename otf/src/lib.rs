@@ -14,6 +14,7 @@ pub struct OpenTypeFont {
     offset_table: OffsetTable,
     cmap_table: tables::cmap::CmapTable,
     head_table: tables::head::HeadTable,
+    hhea_table: tables::hhea::HheaTable,
 }
 
 impl OpenTypeFont {
@@ -24,6 +25,7 @@ impl OpenTypeFont {
         Ok(OpenTypeFont {
             cmap_table: offset_table.unpack_required_table("cmap", &mut cursor)?,
             head_table: offset_table.unpack_required_table("head", &mut cursor)?,
+            hhea_table: offset_table.unpack_required_table("hhea", &mut cursor)?,
             offset_table,
         })
     }
@@ -35,6 +37,7 @@ impl OpenTypeFont {
         // TODO: write in correct order
         self.cmap_table.pack(&mut wr)?;
         self.head_table.pack(&mut wr)?;
+        self.hhea_table.pack(&mut wr)?;
 
         Ok(())
     }
