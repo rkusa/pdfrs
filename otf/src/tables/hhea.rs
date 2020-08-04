@@ -41,7 +41,9 @@ pub struct HheaTable {
 }
 
 impl Packed for HheaTable {
-    fn unpack<R: io::Read>(rd: &mut R) -> Result<Self, io::Error> {
+    type Dep = ();
+
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
         let major_version = rd.read_u16::<BigEndian>()?;
         let minor_version = rd.read_u16::<BigEndian>()?;
         let ascent = rd.read_i16::<BigEndian>()?;
@@ -77,7 +79,7 @@ impl Packed for HheaTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         // TODO: update values based on hmax table
         wr.write_u16::<BigEndian>(self.major_version)?;
         wr.write_u16::<BigEndian>(self.minor_version)?;
@@ -112,8 +114,10 @@ mod test {
     fn test_hhea_table_encode_decode() {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
-        let table = OffsetTable::unpack(&mut cursor).unwrap();
-        let hhea_table: HheaTable = table.unpack_required_table("hhea", &mut cursor).unwrap();
+        let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
+        let hhea_table: HheaTable = table
+            .unpack_required_table("hhea", (), &mut cursor)
+            .unwrap();
 
         assert_eq!(hhea_table.major_version, 1);
         assert_eq!(hhea_table.minor_version, 0);
@@ -132,9 +136,9 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        hhea_table.pack(&mut buffer).unwrap();
+        hhea_table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
-            HheaTable::unpack(&mut Cursor::new(buffer)).unwrap(),
+            HheaTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             hhea_table
         );
     }

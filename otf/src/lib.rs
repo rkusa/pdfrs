@@ -20,24 +20,24 @@ pub struct OpenTypeFont {
 impl OpenTypeFont {
     pub fn from_slice(data: impl AsRef<[u8]>) -> Result<Self, io::Error> {
         let mut cursor = Cursor::new(data.as_ref());
-        let offset_table = OffsetTable::unpack(&mut cursor)?;
+        let offset_table = OffsetTable::unpack(&mut cursor, ())?;
 
         Ok(OpenTypeFont {
-            cmap_table: offset_table.unpack_required_table("cmap", &mut cursor)?,
-            head_table: offset_table.unpack_required_table("head", &mut cursor)?,
-            hhea_table: offset_table.unpack_required_table("hhea", &mut cursor)?,
+            cmap_table: offset_table.unpack_required_table("cmap", (), &mut cursor)?,
+            head_table: offset_table.unpack_required_table("head", (), &mut cursor)?,
+            hhea_table: offset_table.unpack_required_table("hhea", (), &mut cursor)?,
             offset_table,
         })
     }
 
     pub fn to_writer(&self, mut wr: impl io::Write) -> Result<(), io::Error> {
         // TODO: update table entry offsets
-        self.offset_table.pack(&mut wr)?;
+        self.offset_table.pack(&mut wr, ())?;
 
         // TODO: write in correct order
-        self.cmap_table.pack(&mut wr)?;
-        self.head_table.pack(&mut wr)?;
-        self.hhea_table.pack(&mut wr)?;
+        self.cmap_table.pack(&mut wr, ())?;
+        self.head_table.pack(&mut wr, ())?;
+        self.hhea_table.pack(&mut wr, ())?;
 
         Ok(())
     }
@@ -62,10 +62,15 @@ impl OffsetTable {
             .and_then(|i| self.tables.get(i))
     }
 
-    fn unpack_table<T, R>(&self, tag: &str, cursor: &mut Cursor<R>) -> Result<Option<T>, io::Error>
+    fn unpack_table<T, R, D>(
+        &self,
+        tag: &str,
+        dep: D,
+        cursor: &mut Cursor<R>,
+    ) -> Result<Option<T>, io::Error>
     where
         R: io::Read + AsRef<[u8]>,
-        T: Packed,
+        T: Packed<Dep = D>,
     {
         // TODO: return Option for non-required tables?
         let record = match self.get_table_record(tag) {
@@ -74,21 +79,28 @@ impl OffsetTable {
         };
         cursor.set_position(record.offset as u64);
         let mut limit_read = LimitRead::new(cursor, record.length as usize);
-        Ok(Some(T::unpack(&mut limit_read)?))
+        Ok(Some(T::unpack(&mut limit_read, dep)?))
     }
 
-    fn unpack_required_table<T, R>(&self, tag: &str, cursor: &mut Cursor<R>) -> Result<T, io::Error>
+    fn unpack_required_table<T, R, D>(
+        &self,
+        tag: &str,
+        dep: D,
+        cursor: &mut Cursor<R>,
+    ) -> Result<T, io::Error>
     where
         R: io::Read + AsRef<[u8]>,
-        T: Packed,
+        T: Packed<Dep = D>,
     {
-        self.unpack_table::<T, R>(tag, cursor)?
+        self.unpack_table::<T, R, D>(tag, dep, cursor)?
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, format!("{} table missing", tag)))
     }
 }
 
 impl Packed for OffsetTable {
-    fn unpack<R: io::Read>(mut rd: &mut R) -> Result<Self, io::Error> {
+    type Dep = ();
+
+    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
         let sfnt_version = SfntVersion::unpack(&mut rd)?;
         let num_tables = rd.read_u16::<BigEndian>()?;
         let search_range = rd.read_u16::<BigEndian>()?;
@@ -110,7 +122,7 @@ impl Packed for OffsetTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         self.sfnt_version.pack(&mut wr)?;
         wr.write_u16::<BigEndian>(self.num_tables)?;
 
@@ -193,7 +205,7 @@ mod test {
     #[test]
     fn test_offset_table_encode_decode() {
         let data = include_bytes!("../tests/fonts/Iosevka/iosevka-regular.ttf");
-        let table = OffsetTable::unpack(&mut Cursor::new(data.to_vec())).unwrap();
+        let table = OffsetTable::unpack(&mut Cursor::new(data.to_vec()), ()).unwrap();
         assert_eq!(table.sfnt_version, SfntVersion::TrueType);
         assert_eq!(table.num_tables, 17);
         assert_eq!(table.search_range, 256);
@@ -236,9 +248,9 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        table.pack(&mut buffer).unwrap();
+        table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
-            OffsetTable::unpack(&mut Cursor::new(buffer)).unwrap(),
+            OffsetTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             table
         );
     }

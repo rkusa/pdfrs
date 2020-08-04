@@ -42,13 +42,15 @@ impl Format12 {
 }
 
 impl Packed for Format12 {
-    fn unpack<R: io::Read>(mut rd: &mut R) -> Result<Self, io::Error> {
+    type Dep = ();
+
+    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
         let language = rd.read_u32::<BigEndian>()?;
         let num_groups = rd.read_u32::<BigEndian>()?;
 
         let mut groups = Vec::with_capacity(num_groups as usize);
         for _ in 0..num_groups {
-            groups.push(SequentialMapGroup::unpack(&mut rd)?);
+            groups.push(SequentialMapGroup::unpack(&mut rd, ())?);
         }
 
         Ok(Format12 {
@@ -58,11 +60,11 @@ impl Packed for Format12 {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u32::<BigEndian>(self.language)?;
         wr.write_u32::<BigEndian>(self.sequential_map_groups.len() as u32)?;
         for group in &self.sequential_map_groups {
-            group.pack(&mut wr)?;
+            group.pack(&mut wr, ())?;
         }
         Ok(())
     }
@@ -76,7 +78,9 @@ pub struct SequentialMapGroup {
 }
 
 impl Packed for SequentialMapGroup {
-    fn unpack<R: io::Read>(rd: &mut R) -> Result<Self, io::Error> {
+    type Dep = ();
+
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
         Ok(SequentialMapGroup {
             start_char_code: rd.read_u32::<BigEndian>()?,
             end_char_code: rd.read_u32::<BigEndian>()?,
@@ -84,7 +88,7 @@ impl Packed for SequentialMapGroup {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u32::<BigEndian>(self.start_char_code)?;
         wr.write_u32::<BigEndian>(self.end_char_code)?;
         wr.write_u32::<BigEndian>(self.start_glyph_id)?;
@@ -103,9 +107,11 @@ mod test {
     fn get_format4_subtable() -> Format12 {
         let data = include_bytes!("../../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
-        let table = OffsetTable::unpack(&mut cursor).unwrap();
+        let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let cmap_record = table.get_table_record("cmap").unwrap();
-        let cmap_table: CmapTable = table.unpack_required_table("cmap", &mut cursor).unwrap();
+        let cmap_table: CmapTable = table
+            .unpack_required_table("cmap", (), &mut cursor)
+            .unwrap();
 
         let record = cmap_table
             .encoding_records
@@ -114,7 +120,7 @@ mod test {
             .unwrap();
 
         cursor.set_position((cmap_record.offset + record.offset) as u64);
-        let subtable = Subtable::unpack(&mut cursor).unwrap();
+        let subtable = Subtable::unpack(&mut cursor, ()).unwrap();
         match subtable {
             Subtable::Format12(subtable) => subtable,
             _ => panic!("Expected format 12 subtable"),
@@ -132,9 +138,9 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        format12.pack(&mut buffer).unwrap();
+        format12.pack(&mut buffer, ()).unwrap();
         assert_eq!(
-            Format12::unpack(&mut Cursor::new(buffer)).unwrap(),
+            Format12::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             format12
         );
     }

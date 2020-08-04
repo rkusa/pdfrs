@@ -27,7 +27,9 @@ pub struct HeadTable {
 }
 
 impl Packed for HeadTable {
-    fn unpack<R: io::Read>(rd: &mut R) -> Result<Self, io::Error> {
+    type Dep = ();
+
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
         let major_version = rd.read_u16::<BigEndian>()?;
         let minor_version = rd.read_u16::<BigEndian>()?;
 
@@ -56,7 +58,7 @@ impl Packed for HeadTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.major_version)?;
         wr.write_u16::<BigEndian>(self.minor_version)?;
         wr.write_i16::<BigEndian>(self.font_revision.0)?;
@@ -91,8 +93,10 @@ mod test {
     fn test_head_table_encode_decode() {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
-        let table = OffsetTable::unpack(&mut cursor).unwrap();
-        let head_table: HeadTable = table.unpack_required_table("head", &mut cursor).unwrap();
+        let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
+        let head_table: HeadTable = table
+            .unpack_required_table("head", (), &mut cursor)
+            .unwrap();
 
         assert_eq!(head_table.major_version, 1);
         assert_eq!(head_table.minor_version, 0);
@@ -117,9 +121,9 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        head_table.pack(&mut buffer).unwrap();
+        head_table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
-            HeadTable::unpack(&mut Cursor::new(buffer)).unwrap(),
+            HeadTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             head_table
         );
     }

@@ -65,7 +65,9 @@ impl Format4 {
 }
 
 impl Packed for Format4 {
-    fn unpack<R: io::Read>(rd: &mut R) -> Result<Self, io::Error> {
+    type Dep = ();
+
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
         let language = rd.read_u16::<BigEndian>()?;
         let seg_count_x2 = rd.read_u16::<BigEndian>()?;
         let seg_count = (seg_count_x2 / 2) as usize;
@@ -101,7 +103,7 @@ impl Packed for Format4 {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.language)?;
         wr.write_u16::<BigEndian>(self.seg_count_x2)?;
         let search_range = 2 * 2u16.pow(((self.seg_count_x2 / 2) as f32).log2().floor() as u32);
@@ -135,9 +137,11 @@ mod test {
     fn get_format4_subtable() -> Format4 {
         let data = include_bytes!("../../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
-        let table = OffsetTable::unpack(&mut cursor).unwrap();
+        let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let cmap_record = table.get_table_record("cmap").unwrap();
-        let cmap_table: CmapTable = table.unpack_required_table("cmap", &mut cursor).unwrap();
+        let cmap_table: CmapTable = table
+            .unpack_required_table("cmap", (), &mut cursor)
+            .unwrap();
 
         let record = cmap_table
             .encoding_records
@@ -146,7 +150,7 @@ mod test {
             .unwrap();
 
         cursor.set_position((cmap_record.offset + record.offset) as u64);
-        let subtable = Subtable::unpack(&mut cursor).unwrap();
+        let subtable = Subtable::unpack(&mut cursor, ()).unwrap();
         match subtable {
             Subtable::Format4(subtable) => subtable,
             _ => panic!("Expected format 4 subtable"),
@@ -165,8 +169,11 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        format4.pack(&mut buffer).unwrap();
-        assert_eq!(Format4::unpack(&mut Cursor::new(buffer)).unwrap(), format4);
+        format4.pack(&mut buffer, ()).unwrap();
+        assert_eq!(
+            Format4::unpack(&mut Cursor::new(buffer), ()).unwrap(),
+            format4
+        );
     }
 
     #[test]
@@ -221,7 +228,10 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        format4.pack(&mut buffer).unwrap();
-        assert_eq!(Format4::unpack(&mut Cursor::new(buffer)).unwrap(), format4);
+        format4.pack(&mut buffer, ()).unwrap();
+        assert_eq!(
+            Format4::unpack(&mut Cursor::new(buffer), ()).unwrap(),
+            format4
+        );
     }
 }

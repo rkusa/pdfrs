@@ -35,13 +35,15 @@ pub struct CmapTable {
 }
 
 impl Packed for CmapTable {
-    fn unpack<R: io::Read>(mut rd: &mut R) -> Result<Self, io::Error> {
+    type Dep = ();
+
+    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
         let version = rd.read_u16::<BigEndian>()?;
         let num_tables = rd.read_u16::<BigEndian>()?;
 
         let mut encoding_records = Vec::with_capacity(num_tables.min(4) as usize);
         for _ in 0..num_tables {
-            let record = EncodingRecord::unpack(&mut rd)?;
+            let record = EncodingRecord::unpack(&mut rd, ())?;
             // skip unsupported formats
             if !matches!(
                 (record.platform_id, record.encoding_id),
@@ -66,11 +68,11 @@ impl Packed for CmapTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.version)?;
         wr.write_u16::<BigEndian>(self.num_tables)?;
         for table in &self.encoding_records {
-            table.pack(&mut wr)?;
+            table.pack(&mut wr, ())?;
         }
         Ok(())
     }
@@ -85,7 +87,9 @@ pub struct EncodingRecord {
 }
 
 impl Packed for EncodingRecord {
-    fn unpack<R: io::Read>(rd: &mut R) -> Result<Self, io::Error> {
+    type Dep = ();
+
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
         Ok(EncodingRecord {
             platform_id: rd.read_u16::<BigEndian>()?,
             encoding_id: rd.read_u16::<BigEndian>()?,
@@ -93,7 +97,7 @@ impl Packed for EncodingRecord {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.platform_id)?;
         wr.write_u16::<BigEndian>(self.encoding_id)?;
         wr.write_u32::<BigEndian>(self.offset)?;
@@ -119,7 +123,9 @@ impl Subtable {
 }
 
 impl Packed for Subtable {
-    fn unpack<R: io::Read>(rd: &mut R) -> Result<Self, io::Error> {
+    type Dep = ();
+
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
         let format = rd.read_u16::<BigEndian>()?;
 
         match format {
@@ -128,7 +134,7 @@ impl Packed for Subtable {
                 // length excluding format and length
                 length -= (mem::size_of::<u16>() * 2) as u16;
                 let mut rd = LimitRead::new(rd, length as usize);
-                Ok(Subtable::Format4(Format4::unpack(&mut rd)?))
+                Ok(Subtable::Format4(Format4::unpack(&mut rd, ())?))
             }
             12 => {
                 rd.read_u16::<BigEndian>()?; // reserved
@@ -136,7 +142,7 @@ impl Packed for Subtable {
                 // length excluding format, reserved and length
                 length -= (mem::size_of::<u16>() * 2 + mem::size_of::<u32>()) as u32;
                 let mut rd = LimitRead::new(rd, length as usize);
-                Ok(Subtable::Format12(Format12::unpack(&mut rd)?))
+                Ok(Subtable::Format12(Format12::unpack(&mut rd, ())?))
             }
             _ => Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -145,11 +151,11 @@ impl Packed for Subtable {
         }
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         let mut buf = Vec::new();
         match self {
-            Subtable::Format4(subtable) => subtable.pack(&mut buf)?,
-            Subtable::Format12(subtable) => subtable.pack(&mut buf)?,
+            Subtable::Format4(subtable) => subtable.pack(&mut buf, ())?,
+            Subtable::Format12(subtable) => subtable.pack(&mut buf, ())?,
         }
 
         if buf.len() > u16::MAX as usize {
@@ -192,8 +198,10 @@ mod test {
     fn test_cmap_table_encode_decode() {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
-        let table = OffsetTable::unpack(&mut cursor).unwrap();
-        let cmap_table: CmapTable = table.unpack_required_table("cmap", &mut cursor).unwrap();
+        let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
+        let cmap_table: CmapTable = table
+            .unpack_required_table("cmap", (), &mut cursor)
+            .unwrap();
 
         assert_eq!(cmap_table.version, 0);
         assert_eq!(cmap_table.num_tables, 4);
@@ -225,9 +233,9 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        cmap_table.pack(&mut buffer).unwrap();
+        cmap_table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
-            CmapTable::unpack(&mut Cursor::new(buffer)).unwrap(),
+            CmapTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             cmap_table
         );
     }
@@ -236,19 +244,21 @@ mod test {
     fn test_cmap_subtable_encode_decode() {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
-        let table = OffsetTable::unpack(&mut cursor).unwrap();
+        let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let cmap_record = table.get_table_record("cmap").unwrap();
-        let cmap_table: CmapTable = table.unpack_required_table("cmap", &mut cursor).unwrap();
+        let cmap_table: CmapTable = table
+            .unpack_required_table("cmap", (), &mut cursor)
+            .unwrap();
 
         for record in &cmap_table.encoding_records {
             cursor.set_position((cmap_record.offset + record.offset) as u64);
-            let subtable = Subtable::unpack(&mut cursor).unwrap();
+            let subtable = Subtable::unpack(&mut cursor, ()).unwrap();
 
             // re-pack and compare
             let mut buffer = Vec::new();
-            subtable.pack(&mut buffer).unwrap();
+            subtable.pack(&mut buffer, ()).unwrap();
             assert_eq!(
-                Subtable::unpack(&mut Cursor::new(buffer)).unwrap(),
+                Subtable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
                 subtable
             );
         }
