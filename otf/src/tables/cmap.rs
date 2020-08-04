@@ -113,7 +113,7 @@ impl Subtable {
     pub fn glyph_id(&self, codepoint: u32) -> Option<u16> {
         match self {
             Subtable::Format4(subtable) => subtable.glyph_id(codepoint),
-            Subtable::Format12(_subtable) => unimplemented!(),
+            Subtable::Format12(subtable) => subtable.glyph_id(codepoint),
         }
     }
 }
