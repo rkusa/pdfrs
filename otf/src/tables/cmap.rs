@@ -9,16 +9,24 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use format12::Format12;
 use format4::Format4;
 
-// Notes: supported tables:
-// platform_id, encoding_id, format
-// 0, 4 -> Unicode >= 2.0 non-BMP allowed
-// 0, 3, 4 -> Unicode >= 2.0 BMP only
-// 3, 10, 12 -> Windows, full Unicode
-// 3, 1, 4 -> Windows, compatbility with older devices
-// Supported formats: 4, 12
-// Later: 14
+// TODO: support subtable 14?
 
-/// See https://docs.microsoft.com/en-us/typography/opentype/spec/cmap
+/// A font's CMAP table, which ddefines the mapping of character codes to the glyph index values
+/// used in the font. Supported character encodings are (in the order of how they are used if they
+/// are defined):
+/// | platform ID | encoding ID |                                          |
+/// |-------------|-------------|------------------------------------------|
+/// | 0           | 4           | Unicode >= 2.0, non-BMP allowed          |
+/// | 3           | 10          | Windows, full Unicode                    |
+/// | 0           | 3           | Unicode >= 2.0, BMP only                 |
+/// | 3           | 1           | Windows, compatbility with older devices |
+///
+/// Supported subtable formats are: 4 and 12
+///
+/// Not supported character encodings and subtable formats are ignored. An error is returned, if
+/// there is not a single supported character encoding and subtable combination.
+///
+/// See OpenType sepc: https://docs.microsoft.com/en-us/typography/opentype/spec/cmap
 #[derive(Debug, PartialEq)]
 pub struct CmapTable {
     version: u16,
@@ -72,6 +80,7 @@ impl Packed for CmapTable {
 pub struct EncodingRecord {
     platform_id: u16,
     encoding_id: u16,
+    /// Byte offset from beginning of table to the subtable for this encoding.
     offset: u32,
 }
 
@@ -115,46 +124,78 @@ impl Packed for Subtable {
         }
     }
 
-    fn pack<W: io::Write>(&self, _wr: &mut W) -> Result<(), io::Error> {
-        unimplemented!()
+    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+        let mut buf = Vec::new();
+        match self {
+            Subtable::Format4(subtable) => subtable.pack(&mut buf)?,
+            Subtable::Format12(subtable) => subtable.pack(&mut buf)?,
+        }
+
+        if buf.len() > u16::MAX as usize {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("CMAP subtable cannot be bigger than {} bytes", u16::MAX),
+            ));
+        }
+
+        wr.write_u16::<BigEndian>(match self {
+            Subtable::Format4(_) => 4,
+            Subtable::Format12(_) => 12,
+        })?;
+        wr.write_u16::<BigEndian>(buf.len() as u16)?;
+        wr.write_all(&buf)?;
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod test {
-    use std::io::{Cursor, Read};
+    use std::io::Cursor;
 
     use super::*;
     use crate::OffsetTable;
 
     #[test]
     fn test_cmap_table_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf");
-        let mut cursor = Cursor::new(data.to_vec());
+        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor).unwrap();
-        let head_record = table.get_table_record("cmap").unwrap();
+        let cmap_table: CmapTable = table.unpack_required_table("cmap", &mut cursor).unwrap();
 
-        cursor.set_position(head_record.offset as u64);
-        let head = CmapTable::unpack(&mut cursor).unwrap();
-
-        assert_eq!(head.version, 0);
-        assert_eq!(head.num_tables, 4);
+        assert_eq!(cmap_table.version, 0);
+        assert_eq!(cmap_table.num_tables, 4);
+        assert_eq!(
+            cmap_table.encoding_records,
+            vec![
+                EncodingRecord {
+                    platform_id: 0,
+                    encoding_id: 3,
+                    offset: 36,
+                },
+                EncodingRecord {
+                    platform_id: 0,
+                    encoding_id: 4,
+                    offset: 1740,
+                },
+                EncodingRecord {
+                    platform_id: 3,
+                    encoding_id: 1,
+                    offset: 36,
+                },
+                EncodingRecord {
+                    platform_id: 3,
+                    encoding_id: 10,
+                    offset: 1740,
+                },
+            ]
+        );
 
         // re-pack and compare
-        // let mut buffer = Vec::new();
-        // head.pack(&mut buffer).unwrap();
-        // assert_eq!(CmapTable::unpack(Cursor::new(buffer)).unwrap(), head);
-    }
-
-    #[test]
-    fn test_limit_read() {
-        let data = "foobar".as_bytes().to_vec();
-        let mut rd = LimitRead::new(Cursor::new(data), 5);
-
-        let mut buf = [0; 2];
-        assert_eq!((rd.read(&mut buf).unwrap(), &buf), (2, b"fo"));
-        assert_eq!((rd.read(&mut buf).unwrap(), &buf), (2, b"ob"));
-        assert_eq!((rd.read(&mut buf).unwrap(), &buf[..1]), (1, &b"a"[..]));
-        assert_eq!(rd.read(&mut buf).unwrap(), 0);
+        let mut buffer = Vec::new();
+        cmap_table.pack(&mut buffer).unwrap();
+        assert_eq!(
+            CmapTable::unpack(&mut Cursor::new(buffer)).unwrap(),
+            cmap_table
+        );
     }
 }
