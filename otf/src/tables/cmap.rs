@@ -107,6 +107,17 @@ pub enum Subtable {
     Format12(Format12),
 }
 
+impl Subtable {
+    // TODO: remove allow unusued
+    #[allow(unused)]
+    pub fn glyph_id(&self, codepoint: u32) -> Option<u16> {
+        match self {
+            Subtable::Format4(subtable) => subtable.glyph_id(codepoint),
+            Subtable::Format12(_subtable) => unimplemented!(),
+        }
+    }
+}
+
 impl Packed for Subtable {
     fn unpack<R: io::Read>(rd: &mut R) -> Result<Self, io::Error> {
         let format = rd.read_u16::<BigEndian>()?;
