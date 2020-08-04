@@ -15,6 +15,7 @@ pub struct OpenTypeFont {
     cmap_table: tables::cmap::CmapTable,
     head_table: tables::head::HeadTable,
     hhea_table: tables::hhea::HheaTable,
+    maxp_table: tables::maxp::MaxpTable,
 }
 
 impl OpenTypeFont {
@@ -26,6 +27,7 @@ impl OpenTypeFont {
             cmap_table: offset_table.unpack_required_table("cmap", (), &mut cursor)?,
             head_table: offset_table.unpack_required_table("head", (), &mut cursor)?,
             hhea_table: offset_table.unpack_required_table("hhea", (), &mut cursor)?,
+            maxp_table: offset_table.unpack_required_table("maxp", (), &mut cursor)?,
             offset_table,
         })
     }
@@ -38,6 +40,7 @@ impl OpenTypeFont {
         self.cmap_table.pack(&mut wr, ())?;
         self.head_table.pack(&mut wr, ())?;
         self.hhea_table.pack(&mut wr, ())?;
+        self.maxp_table.pack(&mut wr, ())?;
 
         Ok(())
     }
