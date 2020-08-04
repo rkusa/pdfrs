@@ -1,7 +1,7 @@
 mod format12;
 mod format4;
 
-use std::io;
+use std::{io, mem};
 
 use crate::packed::Packed;
 use crate::utils::limit_read::LimitRead;
@@ -110,13 +110,23 @@ pub enum Subtable {
 impl Packed for Subtable {
     fn unpack<R: io::Read>(rd: &mut R) -> Result<Self, io::Error> {
         let format = rd.read_u16::<BigEndian>()?;
-        let length = rd.read_u16::<BigEndian>()?;
-
-        let mut rd = LimitRead::new(rd, length as usize);
 
         match format {
-            4 => Ok(Subtable::Format4(Format4::unpack(&mut rd)?)),
-            12 => Ok(Subtable::Format12(Format12::unpack(&mut rd)?)),
+            4 => {
+                let mut length = rd.read_u16::<BigEndian>()?;
+                // length excluding format and length
+                length -= (mem::size_of::<u16>() * 2) as u16;
+                let mut rd = LimitRead::new(rd, length as usize);
+                Ok(Subtable::Format4(Format4::unpack(&mut rd)?))
+            }
+            12 => {
+                rd.read_u16::<BigEndian>()?; // reserved
+                let mut length = rd.read_u32::<BigEndian>()?;
+                // length excluding format, reserved and length
+                length -= (mem::size_of::<u16>() * 2 + mem::size_of::<u32>()) as u32;
+                let mut rd = LimitRead::new(rd, length as usize);
+                Ok(Subtable::Format12(Format12::unpack(&mut rd)?))
+            }
             _ => Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!("CMAP subtable format {} is not supported", format),
@@ -138,11 +148,23 @@ impl Packed for Subtable {
             ));
         }
 
-        wr.write_u16::<BigEndian>(match self {
-            Subtable::Format4(_) => 4,
-            Subtable::Format12(_) => 12,
-        })?;
-        wr.write_u16::<BigEndian>(buf.len() as u16)?;
+        match self {
+            Subtable::Format4(_) => {
+                wr.write_u16::<BigEndian>(4)?;
+                // buf len + format and length
+                wr.write_u16::<BigEndian>((buf.len() + mem::size_of::<u16>() * 2) as u16)?;
+            }
+            Subtable::Format12(_) => {
+                wr.write_u16::<BigEndian>(12)?;
+                // reserved
+                wr.write_u16::<BigEndian>(0)?;
+                // buf len + format, reserved and length
+                wr.write_u32::<BigEndian>(
+                    (buf.len() + mem::size_of::<u16>() * 2 + mem::size_of::<u32>()) as u32,
+                )?;
+            }
+        }
+
         wr.write_all(&buf)?;
         Ok(())
     }
@@ -197,5 +219,27 @@ mod test {
             CmapTable::unpack(&mut Cursor::new(buffer)).unwrap(),
             cmap_table
         );
+    }
+
+    #[test]
+    fn test_cmap_subtable_encode_decode() {
+        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let mut cursor = Cursor::new(&data[..]);
+        let table = OffsetTable::unpack(&mut cursor).unwrap();
+        let cmap_record = table.get_table_record("cmap").unwrap();
+        let cmap_table: CmapTable = table.unpack_required_table("cmap", &mut cursor).unwrap();
+
+        for record in &cmap_table.encoding_records {
+            cursor.set_position((cmap_record.offset + record.offset) as u64);
+            let subtable = Subtable::unpack(&mut cursor).unwrap();
+
+            // re-pack and compare
+            let mut buffer = Vec::new();
+            subtable.pack(&mut buffer).unwrap();
+            assert_eq!(
+                Subtable::unpack(&mut Cursor::new(buffer)).unwrap(),
+                subtable
+            );
+        }
     }
 }

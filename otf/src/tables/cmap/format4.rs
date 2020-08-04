@@ -111,8 +111,6 @@ mod test {
             .find(|r| r.platform_id == 3 && r.encoding_id == 1)
             .unwrap();
 
-        dbg!(&record);
-
         cursor.set_position((cmap_record.offset + record.offset) as u64);
         let subtable = Subtable::unpack(&mut cursor).unwrap();
         let format4 = match subtable {
