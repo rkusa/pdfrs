@@ -10,6 +10,7 @@ use utils::limit_read::LimitRead;
 pub struct OpenTypeFont {
     offset_table: OffsetTable,
     cmap_table: tables::cmap::CmapTable,
+    glyf_table: tables::glyf::GlyfTable,
     head_table: tables::head::HeadTable,
     hhea_table: tables::hhea::HheaTable,
     hmtx_table: tables::hmtx::HmtxTable,
@@ -28,18 +29,17 @@ impl OpenTypeFont {
         let head_table = offset_table.unpack_required_table("head", (), &mut cursor)?;
         let hhea_table = offset_table.unpack_required_table("hhea", (), &mut cursor)?;
         let maxp_table = offset_table.unpack_required_table("maxp", (), &mut cursor)?;
+        let loca_table =
+            offset_table.unpack_required_table("loca", (&head_table, &maxp_table), &mut cursor)?;
         Ok(OpenTypeFont {
             cmap_table: offset_table.unpack_required_table("cmap", (), &mut cursor)?,
+            glyf_table: offset_table.unpack_required_table("glyf", &loca_table, &mut cursor)?,
             hmtx_table: offset_table.unpack_required_table(
                 "hmtx",
                 (&hhea_table, &maxp_table),
                 &mut cursor,
             )?,
-            loca_table: offset_table.unpack_required_table(
-                "loca",
-                (&head_table, &maxp_table),
-                &mut cursor,
-            )?,
+            loca_table,
             head_table,
             hhea_table,
             maxp_table,
@@ -57,6 +57,7 @@ impl OpenTypeFont {
         // TODO: write in correct order
         // TODO: write or skip all other tables?
         self.cmap_table.pack(&mut wr)?;
+        self.glyf_table.pack(&mut wr)?;
         self.head_table.pack(&mut wr)?;
         self.hhea_table.pack(&mut wr)?;
         self.hmtx_table.pack(&mut wr)?;
