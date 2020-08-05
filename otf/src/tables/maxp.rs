@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+use std::convert::TryFrom;
 use std::io;
 
 use super::FontTable;
@@ -7,7 +9,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// See spec:
 /// - https://docs.microsoft.com/en-us/typography/opentype/spec/maxp
 /// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6maxp.html
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum MaxpTable {
     // Version 0.5
     CFF(CffMaxpTable),
@@ -15,13 +17,13 @@ pub enum MaxpTable {
     TrueType(TrueTypeMaxpTable),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct CffMaxpTable {
     /// The number of glyphs in the font.
     num_glyphs: u16,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TrueTypeMaxpTable {
     /// The number of glyphs in the font.
     num_glyphs: u16,
@@ -95,6 +97,22 @@ impl<'a> FontTable<'a> for MaxpTable {
 
         Ok(())
     }
+
+    fn subset(&'a self, glyph_ids: &[u16]) -> Cow<'a, Self>
+    where
+        Self: Clone,
+    {
+        match self {
+            MaxpTable::CFF(table) => match table.subset(glyph_ids) {
+                Cow::Borrowed(_) => Cow::Borrowed(self),
+                Cow::Owned(table) => Cow::Owned(MaxpTable::CFF(table)),
+            },
+            MaxpTable::TrueType(table) => match table.subset(glyph_ids) {
+                Cow::Borrowed(_) => Cow::Borrowed(self),
+                Cow::Owned(table) => Cow::Owned(MaxpTable::TrueType(table)),
+            },
+        }
+    }
 }
 
 impl<'a> FontTable<'a> for CffMaxpTable {
@@ -109,6 +127,15 @@ impl<'a> FontTable<'a> for CffMaxpTable {
     fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.num_glyphs)?;
         Ok(())
+    }
+
+    fn subset(&'a self, glyph_ids: &[u16]) -> Cow<'a, Self>
+    where
+        Self: Clone,
+    {
+        Cow::Owned(CffMaxpTable {
+            num_glyphs: u16::try_from(glyph_ids.len()).ok().unwrap_or(u16::MAX),
+        })
     }
 }
 
@@ -150,6 +177,16 @@ impl<'a> FontTable<'a> for TrueTypeMaxpTable {
         wr.write_u16::<BigEndian>(self.max_component_elements)?;
         wr.write_u16::<BigEndian>(self.max_component_depth)?;
         Ok(())
+    }
+
+    fn subset(&'a self, glyph_ids: &[u16]) -> Cow<'a, Self>
+    where
+        Self: Clone,
+    {
+        Cow::Owned(TrueTypeMaxpTable {
+            num_glyphs: u16::try_from(glyph_ids.len()).ok().unwrap_or(u16::MAX),
+            ..self.to_owned()
+        })
     }
 }
 
@@ -220,5 +257,60 @@ mod test {
             MaxpTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             maxp_table
         );
+    }
+
+    #[test]
+    fn test_maxp_true_type_subset() {
+        let maxp = TrueTypeMaxpTable {
+            num_glyphs: 8898,
+            max_points: 288,
+            max_contours: 41,
+            max_component_points: 152,
+            max_component_contours: 13,
+            max_zones: 2,
+            max_twilight_points: 144,
+            max_storage: 240,
+            max_function_defs: 141,
+            max_instruction_defs: 0,
+            max_stack_elements: 373,
+            max_size_of_instructions: 3596,
+            max_component_elements: 5,
+            max_component_depth: 4,
+        };
+        let glyph_ids = &[1, 2, 3];
+        let subset = maxp.subset(glyph_ids);
+        assert_eq!(subset.num_glyphs, 3);
+
+        // everything else is unchanged
+        assert_eq!(subset.max_points, maxp.max_points);
+        assert_eq!(subset.max_contours, maxp.max_contours);
+        assert_eq!(subset.max_component_points, maxp.max_component_points);
+        assert_eq!(subset.max_component_contours, maxp.max_component_contours);
+        assert_eq!(subset.max_zones, maxp.max_zones);
+        assert_eq!(subset.max_twilight_points, maxp.max_twilight_points);
+        assert_eq!(subset.max_storage, maxp.max_storage);
+        assert_eq!(subset.max_function_defs, maxp.max_function_defs);
+        assert_eq!(subset.max_instruction_defs, maxp.max_instruction_defs);
+        assert_eq!(subset.max_stack_elements, maxp.max_stack_elements);
+        assert_eq!(
+            subset.max_size_of_instructions,
+            maxp.max_size_of_instructions
+        );
+        assert_eq!(subset.max_component_elements, maxp.max_component_elements);
+        assert_eq!(subset.max_component_depth, maxp.max_component_depth);
+
+        // subset container struct
+        let maxp_table = MaxpTable::TrueType(maxp.clone());
+        assert_eq!(
+            maxp_table.subset(glyph_ids).into_owned(),
+            MaxpTable::TrueType(subset.into_owned())
+        );
+    }
+
+    #[test]
+    fn test_maxp_cff_subset() {
+        let maxp = MaxpTable::CFF(CffMaxpTable { num_glyphs: 10 });
+        let subset = maxp.subset(&[1, 2, 3]);
+        assert_eq!(subset.num_glyphs(), 3)
     }
 }

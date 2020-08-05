@@ -70,7 +70,6 @@ impl<'a> FontTable<'a> for PostTable {
     }
 
     fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
-        // TODO: update addition based on actual version and font content
         wr.write_u16::<BigEndian>(self.major_version)?;
         wr.write_u16::<BigEndian>(self.minor_version)?;
         wr.write_i32::<BigEndian>(self.italic_angle)?;
@@ -84,6 +83,8 @@ impl<'a> FontTable<'a> for PostTable {
         wr.write_all(&self.addition)?;
         Ok(())
     }
+
+    // TODO: implement subset and update mem usage and addition based on version
 }
 
 #[cfg(test)]
