@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io;
 
 use super::hhea::HheaTable;
@@ -9,15 +10,16 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// See spec:
 /// - https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx
 /// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6hmtx.html
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct HmtxTable {
-    /// Paired advance width and left side bearing values for each glyph. Records are indexed by glyph ID.
+    /// Paired advance width and left side bearing values for each glyph. Records are indexed by
+    /// glyph ID.
     h_metrics: Vec<LongHorMetric>,
     /// Left side bearings for glyph IDs greater than or equal to numberOfHMetrics.
     left_side_bearings: Vec<i16>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct LongHorMetric {
     /// Advance width, in font design units.
     advance_width: u16,
@@ -45,7 +47,6 @@ impl<'a> FontTable<'a> for HmtxTable {
     }
 
     fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
-        // TODO: update values
         for metric in &self.h_metrics {
             metric.pack(&mut wr, ())?;
         }
@@ -53,6 +54,33 @@ impl<'a> FontTable<'a> for HmtxTable {
             wr.write_i16::<BigEndian>(*bearing)?;
         }
         Ok(())
+    }
+
+    fn subset(&'a self, glyph_ids: &[u16]) -> Cow<'a, Self>
+    where
+        Self: Clone,
+    {
+        let (h_metrics, left_side_bearings) = glyph_ids
+            .iter()
+            .cloned()
+            .partition::<Vec<u16>, _>(|id| (*id as usize) < self.h_metrics.len());
+        let h_metrics = h_metrics
+            .into_iter()
+            .filter_map(|id| self.h_metrics.get(id as usize))
+            .cloned()
+            .collect();
+        let left_side_bearings = left_side_bearings
+            .into_iter()
+            .filter_map(|id| {
+                self.left_side_bearings
+                    .get((id as usize) - self.h_metrics.len())
+            })
+            .cloned()
+            .collect();
+        Cow::Owned(HmtxTable {
+            h_metrics,
+            left_side_bearings,
+        })
     }
 }
 
@@ -112,6 +140,53 @@ mod test {
         assert_eq!(
             HmtxTable::unpack(&mut Cursor::new(buffer), (&hhea_table, &maxp_table)).unwrap(),
             hmtx_table
+        );
+    }
+
+    #[test]
+    fn test_hmtx_table_subset() {
+        let metric1 = LongHorMetric {
+            advance_width: 1,
+            lsb: 1,
+        };
+        let metric2 = LongHorMetric {
+            advance_width: 2,
+            lsb: 2,
+        };
+        let metric3 = LongHorMetric {
+            advance_width: 3,
+            lsb: 3,
+        };
+        let metric4 = LongHorMetric {
+            advance_width: 4,
+            lsb: 4,
+        };
+        let metric5 = LongHorMetric {
+            advance_width: 5,
+            lsb: 5,
+        };
+
+        let hmtx = HmtxTable {
+            h_metrics: vec![
+                metric1,         // glyph 0
+                metric2.clone(), // glyph 1
+                metric3,         // glyph 2
+                metric4.clone(), // glyph 3
+                metric5,         // glyph 4
+            ],
+            left_side_bearings: vec![
+                6, // glyph 5
+                7, // glyph 6
+                8, // glyph 7,
+            ],
+        };
+
+        assert_eq!(
+            hmtx.subset(&[1, 3, 6]).as_ref(),
+            &HmtxTable {
+                h_metrics: vec![metric2, metric4],
+                left_side_bearings: vec![7]
+            }
         );
     }
 }
