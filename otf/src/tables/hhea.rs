@@ -1,5 +1,9 @@
+use std::borrow::Cow;
+use std::convert::TryFrom;
 use std::io;
 
+use super::head::HeadTable;
+use super::hmtx::HmtxTable;
 use super::FontTable;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
@@ -7,7 +11,8 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// See spec:
 /// - https://docs.microsoft.com/en-us/typography/opentype/spec/hhea
 /// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6hhea.html
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
+#[cfg_attr(test, derive(Default))]
 pub struct HheaTable {
     /// Major version number of the horizontal header table — set to 1.
     pub major_version: u16,
@@ -42,7 +47,7 @@ pub struct HheaTable {
 
 impl<'a> FontTable<'a> for HheaTable {
     type UnpackDep = ();
-    type SubsetDep = ();
+    type SubsetDep = (&'a HeadTable, &'a HmtxTable);
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         let major_version = rd.read_u16::<BigEndian>()?;
@@ -102,6 +107,41 @@ impl<'a> FontTable<'a> for HheaTable {
         wr.write_u16::<BigEndian>(self.number_of_h_metrics)?;
         Ok(())
     }
+
+    fn subset(&'a self, _glyph_ids: &[u16], (head, hmtx): Self::SubsetDep) -> Cow<'a, Self>
+    where
+        Self: Clone,
+    {
+        let max_width = head.x_max.saturating_sub(head.x_min);
+        Cow::Owned(HheaTable {
+            advance_width_max: hmtx
+                .h_metrics
+                .iter()
+                .map(|m| m.advance_width)
+                .max()
+                .unwrap_or(0),
+            min_left_side_bearing: hmtx.left_side_bearings.iter().cloned().min().unwrap_or(0),
+            // Min(aw - lsb - (xMax - xMin))
+            min_right_side_bearing: hmtx
+                .h_metrics
+                .iter()
+                .map(|m| i16::try_from(m.advance_width).ok().unwrap_or(i16::MAX) - m.lsb)
+                .min()
+                .unwrap_or(0)
+                .saturating_sub(max_width),
+            // Max(lsb + (xMax - xMin))
+            x_max_extent: hmtx
+                .h_metrics
+                .iter()
+                .map(|m| m.lsb)
+                .chain(hmtx.left_side_bearings.iter().cloned())
+                .max()
+                .unwrap_or(0)
+                .saturating_add(max_width),
+            number_of_h_metrics: u16::try_from(hmtx.h_metrics.len()).ok().unwrap_or(u16::MAX),
+            ..self.to_owned()
+        })
+    }
 }
 
 #[cfg(test)]
@@ -109,6 +149,7 @@ mod test {
     use std::io::Cursor;
 
     use super::*;
+    use crate::tables::hmtx::LongHorMetric;
     use crate::OffsetTable;
 
     #[test]
@@ -141,6 +182,41 @@ mod test {
         assert_eq!(
             HheaTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             hhea_table
+        );
+    }
+
+    #[test]
+    fn test_hhea_table_subset() {
+        let head = HeadTable {
+            x_min: 10,
+            x_max: 20,
+            ..Default::default()
+        };
+        let hmtx = HmtxTable {
+            h_metrics: vec![
+                LongHorMetric {
+                    advance_width: 50,
+                    lsb: 3,
+                },
+                LongHorMetric {
+                    advance_width: 70,
+                    lsb: 6,
+                },
+            ],
+            left_side_bearings: vec![-3, 9],
+        };
+        let hhea = HheaTable::default();
+        let subset = hhea.subset(&[0, 1, 2, 3], (&head, &hmtx));
+        assert_eq!(
+            subset.as_ref(),
+            &HheaTable {
+                advance_width_max: 70,
+                min_left_side_bearing: -3,
+                min_right_side_bearing: 37,
+                x_max_extent: 19,
+                number_of_h_metrics: 2,
+                ..hhea
+            }
         );
     }
 }

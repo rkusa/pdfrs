@@ -14,17 +14,17 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 pub struct HmtxTable {
     /// Paired advance width and left side bearing values for each glyph. Records are indexed by
     /// glyph ID.
-    h_metrics: Vec<LongHorMetric>,
+    pub(super) h_metrics: Vec<LongHorMetric>,
     /// Left side bearings for glyph IDs greater than or equal to numberOfHMetrics.
-    left_side_bearings: Vec<i16>,
+    pub(super) left_side_bearings: Vec<i16>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct LongHorMetric {
     /// Advance width, in font design units.
-    advance_width: u16,
+    pub(super) advance_width: u16,
     /// Glyph left side bearing, in font design units.
-    lsb: i16,
+    pub(super) lsb: i16,
 }
 
 impl<'a> FontTable<'a> for HmtxTable {
@@ -51,8 +51,21 @@ impl<'a> FontTable<'a> for HmtxTable {
     }
 
     fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+        if self.h_metrics.len() > u16::MAX as usize {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Cannot write more than `u16::MAX` h_metrics",
+            ));
+        }
         for metric in &self.h_metrics {
             metric.pack(&mut wr)?;
+        }
+
+        if self.left_side_bearings.len() > u16::MAX as usize {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Cannot write more than `u16::MAX` left_side_bearings",
+            ));
         }
         for bearing in &self.left_side_bearings {
             wr.write_i16::<BigEndian>(*bearing)?;

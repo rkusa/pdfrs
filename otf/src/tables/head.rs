@@ -5,25 +5,26 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// See https://docs.microsoft.com/en-us/typography/opentype/spec/head
 #[derive(Debug, PartialEq)]
+#[cfg_attr(test, derive(Default))]
 pub struct HeadTable {
-    major_version: u16,
-    minor_version: u16,
-    font_revision: (i16, u16),
-    check_sum_adjustment: u32,
-    magic_number: u32,
-    flags: u16,
-    units_per_em: u16,
-    created: i64,
-    modified: i64,
-    x_min: i16,
-    y_min: i16,
-    x_max: i16,
-    y_max: i16,
-    mac_style: u16,
-    lowest_rec_ppem: u16,
-    font_direction_hint: i16,
-    index_to_loc_format: i16,
-    glyph_data_format: i16,
+    pub(super) major_version: u16,
+    pub(super) minor_version: u16,
+    pub(super) font_revision: (i16, u16),
+    pub(super) check_sum_adjustment: u32,
+    pub(super) magic_number: u32,
+    pub(super) flags: u16,
+    pub(super) units_per_em: u16,
+    pub(super) created: i64,
+    pub(super) modified: i64,
+    pub(super) x_min: i16,
+    pub(super) y_min: i16,
+    pub(super) x_max: i16,
+    pub(super) y_max: i16,
+    pub(super) mac_style: u16,
+    pub(super) lowest_rec_ppem: u16,
+    pub(super) font_direction_hint: i16,
+    pub(super) index_to_loc_format: i16,
+    pub(super) glyph_data_format: i16,
 }
 
 impl<'a> FontTable<'a> for HeadTable {
