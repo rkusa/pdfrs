@@ -3,7 +3,8 @@ use std::io;
 use crate::packed::Packed;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-/// This table contains information for horizontal layout.
+/// This table includes human-readable names for features and settings, copyright notices,
+/// font names, style names, and other information related to the font.
 /// See spec:
 /// - https://docs.microsoft.com/en-us/typography/opentype/spec/name
 /// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6name.html

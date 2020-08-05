@@ -28,9 +28,7 @@ fn datetime_serialization() {
     }
 
     let test = Test {
-        datetime: FixedOffset::east(1 * 3600)
-            .ymd(2015, 2, 19)
-            .and_hms(22, 33, 26),
+        datetime: FixedOffset::east(3600).ymd(2015, 2, 19).and_hms(22, 33, 26),
     };
 
     assert_eq!(

@@ -938,7 +938,7 @@ mod test {
             data: Vec<u8>,
         }
 
-        let test = Bytes::new("foobar".as_bytes());
+        let test = Bytes::new(b"foobar");
         let expected = "stream\nfoobar\nendstream";
         assert_eq!(to_string(&test).unwrap(), expected);
     }

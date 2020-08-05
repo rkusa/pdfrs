@@ -17,6 +17,8 @@ pub struct OpenTypeFont {
     hhea_table: tables::hhea::HheaTable,
     hmtx_table: tables::hmtx::HmtxTable,
     maxp_table: tables::maxp::MaxpTable,
+    name_table: tables::name::NameRecord,
+    os2_table: tables::os2::Os2Table,
 }
 
 impl OpenTypeFont {
@@ -36,6 +38,8 @@ impl OpenTypeFont {
             )?,
             hhea_table,
             maxp_table,
+            name_table: offset_table.unpack_required_table("name", (), &mut cursor)?,
+            os2_table: offset_table.unpack_required_table("os2", (), &mut cursor)?,
             offset_table,
         })
     }
@@ -51,6 +55,8 @@ impl OpenTypeFont {
         self.hmtx_table
             .pack(&mut wr, (&self.hhea_table, &self.maxp_table))?;
         self.maxp_table.pack(&mut wr, ())?;
+        self.name_table.pack(&mut wr, ())?;
+        self.os2_table.pack(&mut wr, ())?;
 
         Ok(())
     }
