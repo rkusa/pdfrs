@@ -181,7 +181,7 @@ impl<'a> FontTable<'a> for Os2Table {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.version)?;
         wr.write_i16::<BigEndian>(self.x_avg_char_width)?;
         wr.write_u16::<BigEndian>(self.us_weight_class)?;

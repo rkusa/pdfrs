@@ -153,7 +153,7 @@ impl<'a> FontTable<'a> for OffsetTable {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         self.sfnt_version.pack(&mut wr)?;
         wr.write_u16::<BigEndian>(self.num_tables)?;
 

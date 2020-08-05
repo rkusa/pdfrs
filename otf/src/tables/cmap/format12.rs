@@ -60,7 +60,7 @@ impl<'a> FontTable<'a> for Format12 {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u32::<BigEndian>(self.language)?;
         wr.write_u32::<BigEndian>(self.sequential_map_groups.len() as u32)?;
         for group in &self.sequential_map_groups {
@@ -88,7 +88,7 @@ impl<'a> FontTable<'a> for SequentialMapGroup {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u32::<BigEndian>(self.start_char_code)?;
         wr.write_u32::<BigEndian>(self.end_char_code)?;
         wr.write_u32::<BigEndian>(self.start_glyph_id)?;

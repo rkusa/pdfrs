@@ -68,7 +68,7 @@ impl<'a> FontTable<'a> for CmapTable {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.version)?;
         wr.write_u16::<BigEndian>(self.num_tables)?;
         for table in &self.encoding_records {
@@ -97,7 +97,7 @@ impl<'a> FontTable<'a> for EncodingRecord {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.platform_id)?;
         wr.write_u16::<BigEndian>(self.encoding_id)?;
         wr.write_u32::<BigEndian>(self.offset)?;
@@ -151,7 +151,7 @@ impl<'a> FontTable<'a> for Subtable {
         }
     }
 
-    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         let mut buf = Vec::new();
         match self {
             Subtable::Format4(subtable) => subtable.pack(&mut buf, ())?,

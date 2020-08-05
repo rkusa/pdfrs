@@ -44,7 +44,7 @@ impl<'a> FontTable<'a> for HmtxTable {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         // TODO: update values
         for metric in &self.h_metrics {
             metric.pack(&mut wr, ())?;
@@ -66,7 +66,7 @@ impl<'a> FontTable<'a> for LongHorMetric {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.advance_width)?;
         wr.write_i16::<BigEndian>(self.lsb)?;
         Ok(())

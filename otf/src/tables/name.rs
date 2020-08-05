@@ -29,7 +29,7 @@ impl<'a> FontTable<'a> for NameTable {
         }
     }
 
-    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         match self {
             NameTable::Format0(table) => {
                 // format
@@ -79,7 +79,7 @@ impl<'a> FontTable<'a> for Format0NameTable {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         // TODO: update count, offset and string_data based on name_records
         wr.write_u16::<BigEndian>(self.count)?;
         wr.write_u16::<BigEndian>(self.offset)?;
@@ -135,7 +135,7 @@ impl<'a> FontTable<'a> for Format1NameTable {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         // TODO: update count, offset and string_data based on name_records (same for lang tags)
         wr.write_u16::<BigEndian>(self.count)?;
         wr.write_u16::<BigEndian>(self.offset)?;
@@ -181,7 +181,7 @@ impl<'a> FontTable<'a> for NameRecord {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.platform_id)?;
         wr.write_u16::<BigEndian>(self.encoding_id)?;
         wr.write_u16::<BigEndian>(self.language_id)?;
@@ -210,7 +210,7 @@ impl<'a> FontTable<'a> for LangTagRecord {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.length)?;
         wr.write_u16::<BigEndian>(self.offset)?;
         Ok(())

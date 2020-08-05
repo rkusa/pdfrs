@@ -79,7 +79,7 @@ impl<'a> FontTable<'a> for MaxpTable {
         }
     }
 
-    fn pack<W: io::Write>(&'a self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         match self {
             MaxpTable::CFF(table) => {
                 // version
@@ -106,7 +106,7 @@ impl<'a> FontTable<'a> for CffMaxpTable {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.num_glyphs)?;
         Ok(())
     }
@@ -134,7 +134,7 @@ impl<'a> FontTable<'a> for TrueTypeMaxpTable {
         })
     }
 
-    fn pack<W: io::Write>(&'a self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.num_glyphs)?;
         wr.write_u16::<BigEndian>(self.max_points)?;
         wr.write_u16::<BigEndian>(self.max_contours)?;
