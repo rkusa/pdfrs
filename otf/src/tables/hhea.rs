@@ -62,7 +62,7 @@ impl<'a> FontTable<'a> for HheaTable {
         let caret_slope_rise = rd.read_i16::<BigEndian>()?;
         let caret_slope_run = rd.read_i16::<BigEndian>()?;
         let caret_offset = rd.read_i16::<BigEndian>()?;
-        // 4 time reserved
+        // 4 times reserved
         for _ in 0..4 {
             rd.read_i16::<BigEndian>()?;
         }

@@ -7,23 +7,68 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 #[derive(Debug, PartialEq)]
 #[cfg_attr(test, derive(Default))]
 pub struct HeadTable {
+    /// Major version number of the font header table — set to 1.
     pub(super) major_version: u16,
+    /// Minor version number of the font header table — set to 0.
     pub(super) minor_version: u16,
+    /// Set by font manufacturer.
     pub(super) font_revision: (i16, u16),
+    /// To compute: set it to 0, sum the entire font as uint32, then store 0xB1B0AFBA - sum. If the
+    /// font is used as a component in a font collection file, the value of this field will be
+    /// invalidated by changes to the file structure and font table directory, and must be ignored.
     pub(super) check_sum_adjustment: u32,
+    /// Set to 0x5F0F3CF5.
     pub(super) magic_number: u32,
+    /// Bit 0: Baseline for font at y=0;
+    /// Bit 1: Left sidebearing point at x=0 (relevant only for TrueType rasterizers) — see the note
+    ///        below regarding variable fonts;
+    /// Bit 2: Instructions may depend on point size;
+    /// Bit 3: Force ppem to integer values for all internal scaler math; may use fractional ppem
+    ///        sizes if this bit is clear;
+    /// Bit 4: Instructions may alter advance width (the advance widths might not scale linearly);
+    /// Bit 5: This bit is not used in OpenType, and should not be set in order to ensure compatible
+    ///         behavior on all platforms.
+    /// Bits 6–10: These bits are not used in Opentype and should always be cleared.
+    /// Bit 11: Font data is “lossless” as a result of having been subjected to optimizing
+    ///         transformation and/or compression.
+    /// Bit 12: Font converted (produce compatible metrics)
+    /// Bit 13: Font optimized for ClearType™.
+    /// Bit 14: Last Resort font. If set, indicates that the glyphs encoded in the 'cmap' subtables
+    ///         are simply generic symbolic representations of code point ranges and don’t truly
+    ///         represent support for those code points. If unset, indicates that the glyphs encoded
+    ///         in the 'cmap' subtables represent proper support for those code points.
+    /// Bit 15: Reserved, set to 0
     pub(super) flags: u16,
+    /// Set to a value from 16 to 16384. Any value in this range is valid.
     pub(super) units_per_em: u16,
+    /// Number of seconds since 12:00 midnight that started January 1st 1904 in GMT/UTC time zone.
     pub(super) created: i64,
+    /// Number of seconds since 12:00 midnight that started January 1st 1904 in GMT/UTC time zone.
     pub(super) modified: i64,
+    /// Min x of all glyph bounding boxes.
     pub(super) x_min: i16,
+    /// Min y of all glyph bounding boxes.
     pub(super) y_min: i16,
+    /// Max x of all glyph bounding boxes.
     pub(super) x_max: i16,
+    /// Max y of all glyph bounding boxes.
     pub(super) y_max: i16,
+    /// Bit 0: Bold (if set to 1);
+    /// Bit 1: Italic (if set to 1)
+    /// Bit 2: Underline (if set to 1)
+    /// Bit 3: Outline (if set to 1)
+    /// Bit 4: Shadow (if set to 1)
+    /// Bit 5: Condensed (if set to 1)
+    /// Bit 6: Extended (if set to 1)
+    /// Bits 7–15: Reserved (set to 0).
     pub(super) mac_style: u16,
+    /// Smallest readable size in pixels.
     pub(super) lowest_rec_ppem: u16,
+    /// Deprecated (Set to 2).
     pub(super) font_direction_hint: i16,
+    /// 0 for short offsets (Offset16), 1 for long (Offset32).
     pub(super) index_to_loc_format: i16,
+    /// 0 for current format.
     pub(super) glyph_data_format: i16,
 }
 
