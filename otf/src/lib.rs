@@ -13,6 +13,7 @@ pub struct OpenTypeFont {
     head_table: tables::head::HeadTable,
     hhea_table: tables::hhea::HheaTable,
     hmtx_table: tables::hmtx::HmtxTable,
+    loca_table: tables::loca::LocaTable,
     maxp_table: tables::maxp::MaxpTable,
     name_table: tables::name::NameRecord,
     os2_table: tables::os2::Os2Table,
@@ -24,16 +25,22 @@ impl OpenTypeFont {
         let mut cursor = Cursor::new(data.as_ref());
         let offset_table = OffsetTable::unpack(&mut cursor, ())?;
 
+        let head_table = offset_table.unpack_required_table("head", (), &mut cursor)?;
         let hhea_table = offset_table.unpack_required_table("hhea", (), &mut cursor)?;
         let maxp_table = offset_table.unpack_required_table("maxp", (), &mut cursor)?;
         Ok(OpenTypeFont {
             cmap_table: offset_table.unpack_required_table("cmap", (), &mut cursor)?,
-            head_table: offset_table.unpack_required_table("head", (), &mut cursor)?,
             hmtx_table: offset_table.unpack_required_table(
                 "hmtx",
                 (&hhea_table, &maxp_table),
                 &mut cursor,
             )?,
+            loca_table: offset_table.unpack_required_table(
+                "loca",
+                (&head_table, &maxp_table),
+                &mut cursor,
+            )?,
+            head_table,
             hhea_table,
             maxp_table,
             name_table: offset_table.unpack_required_table("name", (), &mut cursor)?,
@@ -53,6 +60,7 @@ impl OpenTypeFont {
         self.head_table.pack(&mut wr)?;
         self.hhea_table.pack(&mut wr)?;
         self.hmtx_table.pack(&mut wr)?;
+        self.loca_table.pack(&mut wr)?;
         self.maxp_table.pack(&mut wr)?;
         self.name_table.pack(&mut wr)?;
         self.os2_table.pack(&mut wr)?;
@@ -249,6 +257,10 @@ mod test {
             "cmap table missing"
         );
         assert!(
+            table.tables.iter().any(|t| t.tag == "glyf"),
+            "glyf table missing"
+        );
+        assert!(
             table.tables.iter().any(|t| t.tag == "head"),
             "head table missing"
         );
@@ -259,6 +271,10 @@ mod test {
         assert!(
             table.tables.iter().any(|t| t.tag == "hmtx"),
             "hmtx table missing"
+        );
+        assert!(
+            table.tables.iter().any(|t| t.tag == "loca"),
+            "loca table missing"
         );
         assert!(
             table.tables.iter().any(|t| t.tag == "maxp"),
