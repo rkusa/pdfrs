@@ -3,7 +3,7 @@ mod format4;
 
 use std::{io, mem};
 
-use crate::packed::Packed;
+use super::FontTable;
 use crate::utils::limit_read::LimitRead;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use format12::Format12;
@@ -34,7 +34,7 @@ pub struct CmapTable {
     encoding_records: Vec<EncodingRecord>,
 }
 
-impl<'a> Packed<'a> for CmapTable {
+impl<'a> FontTable<'a> for CmapTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -86,7 +86,7 @@ pub struct EncodingRecord {
     offset: u32,
 }
 
-impl<'a> Packed<'a> for EncodingRecord {
+impl<'a> FontTable<'a> for EncodingRecord {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -122,7 +122,7 @@ impl Subtable {
     }
 }
 
-impl<'a> Packed<'a> for Subtable {
+impl<'a> FontTable<'a> for Subtable {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {

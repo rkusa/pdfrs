@@ -2,7 +2,7 @@ use std::io;
 
 use super::hhea::HheaTable;
 use super::maxp::MaxpTable;
-use crate::packed::Packed;
+use super::FontTable;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table contains glyph metrics used for horizontal text layout.
@@ -25,7 +25,7 @@ pub struct LongHorMetric {
     lsb: i16,
 }
 
-impl<'a> Packed<'a> for HmtxTable {
+impl<'a> FontTable<'a> for HmtxTable {
     type Dep = (&'a HheaTable, &'a MaxpTable);
 
     fn unpack<R: io::Read>(mut rd: &mut R, (hhea, maxp): Self::Dep) -> Result<Self, io::Error> {
@@ -56,7 +56,7 @@ impl<'a> Packed<'a> for HmtxTable {
     }
 }
 
-impl<'a> Packed<'a> for LongHorMetric {
+impl<'a> FontTable<'a> for LongHorMetric {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {

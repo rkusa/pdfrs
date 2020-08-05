@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::packed::Packed;
+use super::FontTable;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// See https://docs.microsoft.com/en-us/typography/opentype/spec/head
@@ -26,7 +26,7 @@ pub struct HeadTable {
     glyph_data_format: i16,
 }
 
-impl<'a> Packed<'a> for HeadTable {
+impl<'a> FontTable<'a> for HeadTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {

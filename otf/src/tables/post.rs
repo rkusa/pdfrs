@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::packed::Packed;
+use super::FontTable;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table contains additional information needed to use OTF fonts on PostScript printers.
@@ -37,7 +37,7 @@ pub struct PostTable {
     addition: Vec<u8>,
 }
 
-impl<'a> Packed<'a> for PostTable {
+impl<'a> FontTable<'a> for PostTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {

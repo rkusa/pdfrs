@@ -1,11 +1,10 @@
-mod packed;
 mod tables;
 mod utils;
 
 use std::io::{self, Cursor};
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use packed::Packed;
+use tables::FontTable;
 use utils::limit_read::LimitRead;
 
 pub struct OpenTypeFont {
@@ -102,7 +101,7 @@ impl OffsetTable {
     ) -> Result<Option<T>, io::Error>
     where
         R: io::Read + AsRef<[u8]>,
-        T: Packed<'a, Dep = D>,
+        T: FontTable<'a, Dep = D>,
     {
         // TODO: return Option for non-required tables?
         let record = match self.get_table_record(tag) {
@@ -122,14 +121,14 @@ impl OffsetTable {
     ) -> Result<T, io::Error>
     where
         R: io::Read + AsRef<[u8]>,
-        T: Packed<'a, Dep = D>,
+        T: FontTable<'a, Dep = D>,
     {
         self.unpack_table::<T, R, D>(tag, dep, cursor)?
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, format!("{} table missing", tag)))
     }
 }
 
-impl<'a> Packed<'a> for OffsetTable {
+impl<'a> FontTable<'a> for OffsetTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {

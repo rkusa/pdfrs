@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::packed::Packed;
+use super::FontTable;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table contains information for horizontal layout.
@@ -40,7 +40,7 @@ pub struct HheaTable {
     pub number_of_h_metrics: u16,
 }
 
-impl<'a> Packed<'a> for HheaTable {
+impl<'a> FontTable<'a> for HheaTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {

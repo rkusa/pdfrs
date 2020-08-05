@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::packed::Packed;
+use super::FontTable;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table consists of a set of metrics and other data that are required for a font.
@@ -53,7 +53,7 @@ pub struct Os2Table {
     us_upper_optical_point_size: u16,
 }
 
-impl<'a> Packed<'a> for Os2Table {
+impl<'a> FontTable<'a> for Os2Table {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {

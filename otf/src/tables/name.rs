@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::packed::Packed;
+use super::FontTable;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table includes human-readable names for features and settings, copyright notices,
@@ -14,7 +14,7 @@ pub enum NameTable {
     Format1(Format1NameTable),
 }
 
-impl<'a> Packed<'a> for NameTable {
+impl<'a> FontTable<'a> for NameTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -59,7 +59,7 @@ pub struct Format0NameTable {
     string_data: Vec<u8>,
 }
 
-impl<'a> Packed<'a> for Format0NameTable {
+impl<'a> FontTable<'a> for Format0NameTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -107,7 +107,7 @@ pub struct Format1NameTable {
     string_data: Vec<u8>,
 }
 
-impl<'a> Packed<'a> for Format1NameTable {
+impl<'a> FontTable<'a> for Format1NameTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -167,7 +167,7 @@ pub struct NameRecord {
     offset: u16,
 }
 
-impl<'a> Packed<'a> for NameRecord {
+impl<'a> FontTable<'a> for NameRecord {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -200,7 +200,7 @@ pub struct LangTagRecord {
     offset: u16,
 }
 
-impl<'a> Packed<'a> for LangTagRecord {
+impl<'a> FontTable<'a> for LangTagRecord {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {

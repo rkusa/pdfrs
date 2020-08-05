@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::packed::Packed;
+use super::FontTable;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table establishes the memory requirements for this font.
@@ -64,7 +64,7 @@ impl MaxpTable {
     }
 }
 
-impl<'a> Packed<'a> for MaxpTable {
+impl<'a> FontTable<'a> for MaxpTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -97,7 +97,7 @@ impl<'a> Packed<'a> for MaxpTable {
     }
 }
 
-impl<'a> Packed<'a> for CffMaxpTable {
+impl<'a> FontTable<'a> for CffMaxpTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -112,7 +112,7 @@ impl<'a> Packed<'a> for CffMaxpTable {
     }
 }
 
-impl<'a> Packed<'a> for TrueTypeMaxpTable {
+impl<'a> FontTable<'a> for TrueTypeMaxpTable {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {

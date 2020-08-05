@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::io;
 
-use crate::packed::Packed;
+use super::FontTable;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 #[derive(Debug, PartialEq)]
@@ -41,7 +41,7 @@ impl Format12 {
     }
 }
 
-impl<'a> Packed<'a> for Format12 {
+impl<'a> FontTable<'a> for Format12 {
     type Dep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
@@ -77,7 +77,7 @@ pub struct SequentialMapGroup {
     start_glyph_id: u32,
 }
 
-impl<'a> Packed<'a> for SequentialMapGroup {
+impl<'a> FontTable<'a> for SequentialMapGroup {
     type Dep = ();
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
