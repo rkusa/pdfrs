@@ -38,9 +38,10 @@ pub struct PostTable {
 }
 
 impl<'a> FontTable<'a> for PostTable {
-    type Dep = ();
+    type UnpackDep = ();
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         let major_version = rd.read_u16::<BigEndian>()?;
         let minor_version = rd.read_u16::<BigEndian>()?;
         let italic_angle = rd.read_i32::<BigEndian>()?;
@@ -69,7 +70,7 @@ impl<'a> FontTable<'a> for PostTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.major_version)?;
         wr.write_u16::<BigEndian>(self.minor_version)?;
         wr.write_i32::<BigEndian>(self.italic_angle)?;
@@ -116,7 +117,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        post_table.pack(&mut buffer, ()).unwrap();
+        post_table.pack(&mut buffer).unwrap();
         assert_eq!(
             PostTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             post_table

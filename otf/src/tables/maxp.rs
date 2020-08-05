@@ -67,9 +67,10 @@ impl MaxpTable {
 }
 
 impl<'a> FontTable<'a> for MaxpTable {
-    type Dep = ();
+    type UnpackDep = ();
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         let version = rd.read_u32::<BigEndian>()?;
         match version {
             0x00005000 => Ok(MaxpTable::CFF(CffMaxpTable::unpack(&mut rd, ())?)),
@@ -81,33 +82,33 @@ impl<'a> FontTable<'a> for MaxpTable {
         }
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
         match self {
             MaxpTable::CFF(table) => {
                 // version
                 wr.write_u32::<BigEndian>(0x00005000)?;
-                table.pack(&mut wr, ())?;
+                table.pack(&mut wr)?;
             }
             MaxpTable::TrueType(table) => {
                 // version
                 wr.write_u32::<BigEndian>(0x00010000)?;
-                table.pack(&mut wr, ())?;
+                table.pack(&mut wr)?;
             }
         }
 
         Ok(())
     }
 
-    fn subset(&'a self, glyph_ids: &[u16]) -> Cow<'a, Self>
+    fn subset(&'a self, glyph_ids: &[u16], _: Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {
         match self {
-            MaxpTable::CFF(table) => match table.subset(glyph_ids) {
+            MaxpTable::CFF(table) => match table.subset(glyph_ids, ()) {
                 Cow::Borrowed(_) => Cow::Borrowed(self),
                 Cow::Owned(table) => Cow::Owned(MaxpTable::CFF(table)),
             },
-            MaxpTable::TrueType(table) => match table.subset(glyph_ids) {
+            MaxpTable::TrueType(table) => match table.subset(glyph_ids, ()) {
                 Cow::Borrowed(_) => Cow::Borrowed(self),
                 Cow::Owned(table) => Cow::Owned(MaxpTable::TrueType(table)),
             },
@@ -116,20 +117,21 @@ impl<'a> FontTable<'a> for MaxpTable {
 }
 
 impl<'a> FontTable<'a> for CffMaxpTable {
-    type Dep = ();
+    type UnpackDep = ();
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         Ok(CffMaxpTable {
             num_glyphs: rd.read_u16::<BigEndian>()?,
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.num_glyphs)?;
         Ok(())
     }
 
-    fn subset(&'a self, glyph_ids: &[u16]) -> Cow<'a, Self>
+    fn subset(&'a self, glyph_ids: &[u16], _: Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {
@@ -140,9 +142,10 @@ impl<'a> FontTable<'a> for CffMaxpTable {
 }
 
 impl<'a> FontTable<'a> for TrueTypeMaxpTable {
-    type Dep = ();
+    type UnpackDep = ();
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         Ok(TrueTypeMaxpTable {
             num_glyphs: rd.read_u16::<BigEndian>()?,
             max_points: rd.read_u16::<BigEndian>()?,
@@ -161,7 +164,7 @@ impl<'a> FontTable<'a> for TrueTypeMaxpTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.num_glyphs)?;
         wr.write_u16::<BigEndian>(self.max_points)?;
         wr.write_u16::<BigEndian>(self.max_contours)?;
@@ -179,7 +182,7 @@ impl<'a> FontTable<'a> for TrueTypeMaxpTable {
         Ok(())
     }
 
-    fn subset(&'a self, glyph_ids: &[u16]) -> Cow<'a, Self>
+    fn subset(&'a self, glyph_ids: &[u16], _: Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {
@@ -228,7 +231,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        maxp_table.pack(&mut buffer, ()).unwrap();
+        maxp_table.pack(&mut buffer).unwrap();
         assert_eq!(
             MaxpTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             maxp_table
@@ -252,7 +255,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        maxp_table.pack(&mut buffer, ()).unwrap();
+        maxp_table.pack(&mut buffer).unwrap();
         assert_eq!(
             MaxpTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             maxp_table
@@ -278,7 +281,7 @@ mod test {
             max_component_depth: 4,
         };
         let glyph_ids = &[1, 2, 3];
-        let subset = maxp.subset(glyph_ids);
+        let subset = maxp.subset(glyph_ids, ());
         assert_eq!(subset.num_glyphs, 3);
 
         // everything else is unchanged
@@ -302,7 +305,7 @@ mod test {
         // subset container struct
         let maxp_table = MaxpTable::TrueType(maxp.clone());
         assert_eq!(
-            maxp_table.subset(glyph_ids).into_owned(),
+            maxp_table.subset(glyph_ids, ()).into_owned(),
             MaxpTable::TrueType(subset.into_owned())
         );
     }
@@ -310,7 +313,7 @@ mod test {
     #[test]
     fn test_maxp_cff_subset() {
         let maxp = MaxpTable::CFF(CffMaxpTable { num_glyphs: 10 });
-        let subset = maxp.subset(&[1, 2, 3]);
+        let subset = maxp.subset(&[1, 2, 3], ());
         assert_eq!(subset.num_glyphs(), 3)
     }
 }

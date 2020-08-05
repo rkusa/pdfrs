@@ -45,19 +45,18 @@ impl OpenTypeFont {
 
     pub fn to_writer(&self, mut wr: impl io::Write) -> Result<(), io::Error> {
         // TODO: update table entry offsets
-        self.offset_table.pack(&mut wr, ())?;
+        self.offset_table.pack(&mut wr)?;
 
         // TODO: write in correct order
         // TODO: write or skip all other tables?
-        self.cmap_table.pack(&mut wr, ())?;
-        self.head_table.pack(&mut wr, ())?;
-        self.hhea_table.pack(&mut wr, ())?;
-        self.hmtx_table
-            .pack(&mut wr, (&self.hhea_table, &self.maxp_table))?;
-        self.maxp_table.pack(&mut wr, ())?;
-        self.name_table.pack(&mut wr, ())?;
-        self.os2_table.pack(&mut wr, ())?;
-        self.post_table.pack(&mut wr, ())?;
+        self.cmap_table.pack(&mut wr)?;
+        self.head_table.pack(&mut wr)?;
+        self.hhea_table.pack(&mut wr)?;
+        self.hmtx_table.pack(&mut wr)?;
+        self.maxp_table.pack(&mut wr)?;
+        self.name_table.pack(&mut wr)?;
+        self.os2_table.pack(&mut wr)?;
+        self.post_table.pack(&mut wr)?;
 
         Ok(())
     }
@@ -93,15 +92,15 @@ impl OffsetTable {
             .and_then(|i| self.tables.get(i))
     }
 
-    fn unpack_table<'a, T, R, D>(
+    fn unpack_table<'a, T, R, UD, SD>(
         &self,
         tag: &str,
-        dep: D,
+        dep: UD,
         cursor: &mut Cursor<R>,
     ) -> Result<Option<T>, io::Error>
     where
         R: io::Read + AsRef<[u8]>,
-        T: FontTable<'a, Dep = D>,
+        T: FontTable<'a, UnpackDep = UD, SubsetDep = SD>,
     {
         // TODO: return Option for non-required tables?
         let record = match self.get_table_record(tag) {
@@ -113,25 +112,26 @@ impl OffsetTable {
         Ok(Some(T::unpack(&mut limit_read, dep)?))
     }
 
-    fn unpack_required_table<'a, T, R, D>(
+    fn unpack_required_table<'a, T, R, UD, SD>(
         &self,
         tag: &str,
-        dep: D,
+        dep: UD,
         cursor: &mut Cursor<R>,
     ) -> Result<T, io::Error>
     where
         R: io::Read + AsRef<[u8]>,
-        T: FontTable<'a, Dep = D>,
+        T: FontTable<'a, UnpackDep = UD, SubsetDep = SD>,
     {
-        self.unpack_table::<T, R, D>(tag, dep, cursor)?
+        self.unpack_table::<T, R, UD, SD>(tag, dep, cursor)?
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, format!("{} table missing", tag)))
     }
 }
 
 impl<'a> FontTable<'a> for OffsetTable {
-    type Dep = ();
+    type UnpackDep = ();
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         let sfnt_version = SfntVersion::unpack(&mut rd)?;
         let num_tables = rd.read_u16::<BigEndian>()?;
         let search_range = rd.read_u16::<BigEndian>()?;
@@ -153,7 +153,7 @@ impl<'a> FontTable<'a> for OffsetTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
         self.sfnt_version.pack(&mut wr)?;
         wr.write_u16::<BigEndian>(self.num_tables)?;
 
@@ -279,7 +279,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        table.pack(&mut buffer, ()).unwrap();
+        table.pack(&mut buffer).unwrap();
         assert_eq!(
             OffsetTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             table

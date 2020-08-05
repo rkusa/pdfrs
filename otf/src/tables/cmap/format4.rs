@@ -65,9 +65,10 @@ impl Format4 {
 }
 
 impl<'a> FontTable<'a> for Format4 {
-    type Dep = ();
+    type UnpackDep = ();
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         let language = rd.read_u16::<BigEndian>()?;
         let seg_count_x2 = rd.read_u16::<BigEndian>()?;
         let seg_count = (seg_count_x2 / 2) as usize;
@@ -103,7 +104,7 @@ impl<'a> FontTable<'a> for Format4 {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.language)?;
         wr.write_u16::<BigEndian>(self.seg_count_x2)?;
         let search_range = 2 * 2u16.pow(((self.seg_count_x2 / 2) as f32).log2().floor() as u32);
@@ -169,7 +170,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        format4.pack(&mut buffer, ()).unwrap();
+        format4.pack(&mut buffer).unwrap();
         assert_eq!(
             Format4::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             format4
@@ -228,7 +229,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        format4.pack(&mut buffer, ()).unwrap();
+        format4.pack(&mut buffer).unwrap();
         assert_eq!(
             Format4::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             format4

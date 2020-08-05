@@ -28,9 +28,13 @@ pub struct LongHorMetric {
 }
 
 impl<'a> FontTable<'a> for HmtxTable {
-    type Dep = (&'a HheaTable, &'a MaxpTable);
+    type UnpackDep = (&'a HheaTable, &'a MaxpTable);
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(mut rd: &mut R, (hhea, maxp): Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(
+        mut rd: &mut R,
+        (hhea, maxp): Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         let mut h_metrics = Vec::with_capacity(hhea.number_of_h_metrics as usize);
         for _ in 0..hhea.number_of_h_metrics {
             h_metrics.push(LongHorMetric::unpack(&mut rd, ())?);
@@ -46,9 +50,9 @@ impl<'a> FontTable<'a> for HmtxTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
         for metric in &self.h_metrics {
-            metric.pack(&mut wr, ())?;
+            metric.pack(&mut wr)?;
         }
         for bearing in &self.left_side_bearings {
             wr.write_i16::<BigEndian>(*bearing)?;
@@ -56,7 +60,7 @@ impl<'a> FontTable<'a> for HmtxTable {
         Ok(())
     }
 
-    fn subset(&'a self, glyph_ids: &[u16]) -> Cow<'a, Self>
+    fn subset(&'a self, glyph_ids: &[u16], _: Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {
@@ -85,16 +89,17 @@ impl<'a> FontTable<'a> for HmtxTable {
 }
 
 impl<'a> FontTable<'a> for LongHorMetric {
-    type Dep = ();
+    type UnpackDep = ();
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         Ok(LongHorMetric {
             advance_width: rd.read_u16::<BigEndian>()?,
             lsb: rd.read_i16::<BigEndian>()?,
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.advance_width)?;
         wr.write_i16::<BigEndian>(self.lsb)?;
         Ok(())
@@ -134,9 +139,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        hmtx_table
-            .pack(&mut buffer, (&hhea_table, &maxp_table))
-            .unwrap();
+        hmtx_table.pack(&mut buffer).unwrap();
         assert_eq!(
             HmtxTable::unpack(&mut Cursor::new(buffer), (&hhea_table, &maxp_table)).unwrap(),
             hmtx_table
@@ -182,7 +185,7 @@ mod test {
         };
 
         assert_eq!(
-            hmtx.subset(&[1, 3, 6]).as_ref(),
+            hmtx.subset(&[1, 3, 6], ()).as_ref(),
             &HmtxTable {
                 h_metrics: vec![metric2, metric4],
                 left_side_bearings: vec![7]

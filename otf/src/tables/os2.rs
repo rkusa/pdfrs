@@ -54,9 +54,10 @@ pub struct Os2Table {
 }
 
 impl<'a> FontTable<'a> for Os2Table {
-    type Dep = ();
+    type UnpackDep = ();
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         let version = rd.read_u16::<BigEndian>()?;
         let x_avg_char_width = rd.read_i16::<BigEndian>()?;
         let us_weight_class = rd.read_u16::<BigEndian>()?;
@@ -181,7 +182,7 @@ impl<'a> FontTable<'a> for Os2Table {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.version)?;
         wr.write_i16::<BigEndian>(self.x_avg_char_width)?;
         wr.write_u16::<BigEndian>(self.us_weight_class)?;
@@ -300,7 +301,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        os2_table.pack(&mut buffer, ()).unwrap();
+        os2_table.pack(&mut buffer).unwrap();
         assert_eq!(
             Os2Table::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             os2_table

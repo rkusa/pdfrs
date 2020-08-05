@@ -35,9 +35,10 @@ pub struct CmapTable {
 }
 
 impl<'a> FontTable<'a> for CmapTable {
-    type Dep = ();
+    type UnpackDep = ();
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         let version = rd.read_u16::<BigEndian>()?;
         let num_tables = rd.read_u16::<BigEndian>()?;
 
@@ -68,11 +69,11 @@ impl<'a> FontTable<'a> for CmapTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.version)?;
         wr.write_u16::<BigEndian>(self.num_tables)?;
         for table in &self.encoding_records {
-            table.pack(&mut wr, ())?;
+            table.pack(&mut wr)?;
         }
         Ok(())
     }
@@ -87,9 +88,10 @@ pub struct EncodingRecord {
 }
 
 impl<'a> FontTable<'a> for EncodingRecord {
-    type Dep = ();
+    type UnpackDep = ();
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         Ok(EncodingRecord {
             platform_id: rd.read_u16::<BigEndian>()?,
             encoding_id: rd.read_u16::<BigEndian>()?,
@@ -97,7 +99,7 @@ impl<'a> FontTable<'a> for EncodingRecord {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.platform_id)?;
         wr.write_u16::<BigEndian>(self.encoding_id)?;
         wr.write_u32::<BigEndian>(self.offset)?;
@@ -123,9 +125,10 @@ impl Subtable {
 }
 
 impl<'a> FontTable<'a> for Subtable {
-    type Dep = ();
+    type UnpackDep = ();
+    type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::Dep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         let format = rd.read_u16::<BigEndian>()?;
 
         match format {
@@ -151,11 +154,11 @@ impl<'a> FontTable<'a> for Subtable {
         }
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::Dep) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
         let mut buf = Vec::new();
         match self {
-            Subtable::Format4(subtable) => subtable.pack(&mut buf, ())?,
-            Subtable::Format12(subtable) => subtable.pack(&mut buf, ())?,
+            Subtable::Format4(subtable) => subtable.pack(&mut buf)?,
+            Subtable::Format12(subtable) => subtable.pack(&mut buf)?,
         }
 
         if buf.len() > u16::MAX as usize {
@@ -233,7 +236,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        cmap_table.pack(&mut buffer, ()).unwrap();
+        cmap_table.pack(&mut buffer).unwrap();
         assert_eq!(
             CmapTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             cmap_table
@@ -256,7 +259,7 @@ mod test {
 
             // re-pack and compare
             let mut buffer = Vec::new();
-            subtable.pack(&mut buffer, ()).unwrap();
+            subtable.pack(&mut buffer).unwrap();
             assert_eq!(
                 Subtable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
                 subtable
