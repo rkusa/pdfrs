@@ -8,8 +8,6 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use packed::Packed;
 use utils::limit_read::LimitRead;
 
-// Spec: https://docs.microsoft.com/en-us/typography/opentype/spec/otff
-
 pub struct OpenTypeFont {
     offset_table: OffsetTable,
     cmap_table: tables::cmap::CmapTable,
@@ -19,6 +17,7 @@ pub struct OpenTypeFont {
     maxp_table: tables::maxp::MaxpTable,
     name_table: tables::name::NameRecord,
     os2_table: tables::os2::Os2Table,
+    post_table: tables::post::PostTable,
 }
 
 impl OpenTypeFont {
@@ -40,6 +39,7 @@ impl OpenTypeFont {
             maxp_table,
             name_table: offset_table.unpack_required_table("name", (), &mut cursor)?,
             os2_table: offset_table.unpack_required_table("os2", (), &mut cursor)?,
+            post_table: offset_table.unpack_required_table("post", (), &mut cursor)?,
             offset_table,
         })
     }
@@ -49,6 +49,7 @@ impl OpenTypeFont {
         self.offset_table.pack(&mut wr, ())?;
 
         // TODO: write in correct order
+        // TODO: write or skip all other tables?
         self.cmap_table.pack(&mut wr, ())?;
         self.head_table.pack(&mut wr, ())?;
         self.hhea_table.pack(&mut wr, ())?;
@@ -57,19 +58,31 @@ impl OpenTypeFont {
         self.maxp_table.pack(&mut wr, ())?;
         self.name_table.pack(&mut wr, ())?;
         self.os2_table.pack(&mut wr, ())?;
+        self.post_table.pack(&mut wr, ())?;
 
         Ok(())
     }
 }
 
+/// This table contains a dictionary of all font tables included in the file.
+/// See spec:
+/// - https://docs.microsoft.com/en-us/typography/opentype/spec/otff
+/// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6.html
 #[derive(Debug, PartialEq)]
 struct OffsetTable {
+    /// OpenType fonts that contain TrueType outlines should use the value of 0x00010000. OpenType
+    /// fonts containing CFF data (version 1 or 2) should use 0x4F54544F ('OTTO', when
+    /// re-interpreted as a Tag).
     sfnt_version: SfntVersion,
+    /// Number of tables.
     num_tables: u16,
+    /// (Maximum power of 2 <= numTables) x 16.
     search_range: u16,
+    /// Log2(maximum power of 2 <= numTables).
     entry_selector: u16,
+    /// NumTables x 16-searchRange.
     range_shift: u16,
-    // expected to be ordered ascending by their tag
+    /// Table records of the front. Expected to be ordered ascending by their tag.
     tables: Vec<TableRecord>,
 }
 
