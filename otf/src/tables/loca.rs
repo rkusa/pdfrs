@@ -12,14 +12,15 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6loca.html
 #[derive(Debug, PartialEq, Clone)]
 pub struct LocaTable {
-    /// Offsets indexed by glyph id.
-    offsets: Vec<u32>,
+    /// Offsets indexed by glyph id. The size of a glyph data block is inferred from the difference
+    /// between two consecutive offsets.
+    pub(super) offsets: Vec<u32>,
     // not part of the font, but persisted to keep track of it
-    format: Format,
+    pub(super) format: Format,
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum Format {
+pub(super) enum Format {
     Short,
     Long,
 }
