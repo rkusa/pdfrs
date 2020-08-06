@@ -1,10 +1,13 @@
+use std::borrow::Cow;
 use std::io;
 
+use super::glyf::GlyfTable;
+use super::loca::{Format as LocaFormat, LocaTable};
 use super::FontTable;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// See https://docs.microsoft.com/en-us/typography/opentype/spec/head
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(test, derive(Default))]
 pub struct HeadTable {
     /// Major version number of the font header table — set to 1.
@@ -74,7 +77,7 @@ pub struct HeadTable {
 
 impl<'a> FontTable<'a> for HeadTable {
     type UnpackDep = ();
-    type SubsetDep = ();
+    type SubsetDep = (&'a GlyfTable, &'a LocaTable);
 
     fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
         let major_version = rd.read_u16::<BigEndian>()?;
@@ -127,6 +130,43 @@ impl<'a> FontTable<'a> for HeadTable {
         wr.write_i16::<BigEndian>(self.glyph_data_format)?;
         Ok(())
     }
+
+    fn subset(&'a self, _glyph_ids: &[u16], (glyf, loca): Self::SubsetDep) -> Cow<'a, Self>
+    where
+        Self: Clone,
+    {
+        Cow::Owned(HeadTable {
+            x_min: glyf
+                .glyphs
+                .iter()
+                .filter_map(|g| g.as_ref().map(|d| d.x_min))
+                .min()
+                .unwrap_or(0),
+            y_min: glyf
+                .glyphs
+                .iter()
+                .filter_map(|g| g.as_ref().map(|d| d.y_min))
+                .min()
+                .unwrap_or(0),
+            x_max: glyf
+                .glyphs
+                .iter()
+                .filter_map(|g| g.as_ref().map(|d| d.x_max))
+                .max()
+                .unwrap_or(0),
+            y_max: glyf
+                .glyphs
+                .iter()
+                .filter_map(|g| g.as_ref().map(|d| d.y_max))
+                .max()
+                .unwrap_or(0),
+            index_to_loc_format: match loca.format {
+                LocaFormat::Short => 0,
+                LocaFormat::Long => 1,
+            },
+            ..self.clone()
+        })
+    }
 }
 
 #[cfg(test)]
@@ -134,6 +174,7 @@ mod test {
     use std::io::Cursor;
 
     use super::*;
+    use crate::tables::glyf::GlyphData;
     use crate::OffsetTable;
 
     #[test]
@@ -173,5 +214,46 @@ mod test {
             HeadTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
             head_table
         );
+    }
+
+    #[test]
+    fn test_head_table_subset() {
+        let g2 = GlyphData {
+            number_of_contours: 1,
+            x_min: 1,
+            y_min: 2,
+            x_max: 3,
+            y_max: 4,
+            description: Vec::new(),
+        };
+        let g4 = GlyphData {
+            number_of_contours: 2,
+            x_min: 4,
+            y_min: 3,
+            x_max: 2,
+            y_max: 1,
+            description: Vec::new(),
+        };
+        let glyf = GlyfTable {
+            glyphs: vec![None, Some(g2), None, Some(g4), None],
+        };
+        let loca = LocaTable {
+            offsets: Vec::new(),
+            format: LocaFormat::Long,
+        };
+
+        let head = HeadTable::default();
+        let subset = head.subset(&[], (&glyf, &loca));
+        assert_eq!(
+            subset.as_ref(),
+            &HeadTable {
+                x_min: 1,
+                y_min: 2,
+                x_max: 3,
+                y_max: 4,
+                index_to_loc_format: 1,
+                ..Default::default()
+            }
+        )
     }
 }
