@@ -672,8 +672,6 @@ where
 
             self.discard_whitespace()?;
 
-            dbg!(self.peek_char()?);
-
             // Parse the closing brace of the map.
             if (self.next_char()?, self.next_char()?) == (Some(b'>'), Some(b'>')) {
                 Ok(value)

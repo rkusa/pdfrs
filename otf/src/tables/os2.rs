@@ -252,8 +252,6 @@ mod test {
             .unpack_required_table("OS/2", (), &mut cursor)
             .unwrap();
 
-        dbg!(&os2_table);
-
         assert_eq!(
             os2_table,
             Os2Table {

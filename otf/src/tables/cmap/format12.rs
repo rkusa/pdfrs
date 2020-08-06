@@ -25,9 +25,6 @@ impl Format12 {
             Err(ix) => ix,
         };
         let group = self.sequential_map_groups.get(ix)?;
-        dbg!(codepoint);
-        dbg!(ix);
-        dbg!(&group);
         if codepoint < group.start_char_code || codepoint > group.end_char_code {
             return None;
         }

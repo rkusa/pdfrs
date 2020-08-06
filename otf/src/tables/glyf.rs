@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::{self, Read};
 use std::mem;
 
@@ -14,25 +15,31 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6glyf.html
 #[derive(Debug, PartialEq, Clone)]
 pub struct GlyfTable {
-    glyphs: Vec<Option<GlyphData>>,
+    pub(super) glyphs: Vec<Option<GlyphData>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct GlyphData {
     /// If the number of contours is greater than or equal to zero, this is a simple glyph. If
     /// negative, this is a composite glyph — the value -1 should be used for composite glyphs.
-    number_of_contours: i16,
+    pub(super) number_of_contours: i16,
     /// Minimum x for coordinate data.
-    x_min: i16,
+    pub(super) x_min: i16,
     /// Minimum y for coordinate data.
-    y_min: i16,
+    pub(super) y_min: i16,
     /// Maximum x for coordinate data.
-    x_max: i16,
+    pub(super) x_max: i16,
     /// Maximum y for coordinate data.
-    y_max: i16,
+    pub(super) y_max: i16,
     /// The raw glyph description.
     // TODO: parse into actual simple/composit enum?
-    description: Vec<u8>,
+    pub(super) description: Vec<u8>,
+}
+
+impl GlyphData {
+    pub fn size_in_byte(&self) -> usize {
+        mem::size_of::<i16>() * 5 + self.description.len()
+    }
 }
 
 impl<'a> FontTable<'a> for GlyfTable {
@@ -40,7 +47,6 @@ impl<'a> FontTable<'a> for GlyfTable {
     type SubsetDep = ();
 
     fn unpack<R: io::Read>(mut rd: &mut R, loca: Self::UnpackDep) -> Result<Self, io::Error> {
-        dbg!(&loca.offsets);
         let mut glyphs = Vec::with_capacity(loca.offsets.len().saturating_sub(1));
 
         let mut pos = 0;
@@ -60,8 +66,6 @@ impl<'a> FontTable<'a> for GlyfTable {
                     "Encountered unaligned LOCA table offsets",
                 ));
             }
-
-            dbg!((start, end, end - start));
 
             let mut limit_read = LimitRead::new(&mut rd, end - start);
             let number_of_contours = limit_read.read_i16::<BigEndian>()?;
@@ -101,6 +105,18 @@ impl<'a> FontTable<'a> for GlyfTable {
         }
         Ok(())
     }
+
+    fn subset(&'a self, glyph_ids: &[u16], _dep: Self::SubsetDep) -> Cow<'a, Self>
+    where
+        Self: Clone,
+    {
+        Cow::Owned(GlyfTable {
+            glyphs: glyph_ids
+                .iter()
+                .map(|i| self.glyphs.get(*i as usize).cloned().flatten())
+                .collect(),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -113,7 +129,20 @@ mod test {
     use crate::OffsetTable;
 
     #[test]
-    fn test_loca_table_encode_decode() {
+    fn test_glypg_data_size_in_bytes() {
+        let g = GlyphData {
+            number_of_contours: 1,
+            x_min: 1,
+            y_min: 1,
+            x_max: 1,
+            y_max: 1,
+            description: vec![0; 10],
+        };
+        assert_eq!(g.size_in_byte(), 20);
+    }
+
+    #[test]
+    fn test_glyf_table_encode_decode() {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
@@ -142,5 +171,43 @@ mod test {
             GlyfTable::unpack(&mut Cursor::new(buffer), &loca_table).unwrap(),
             glyf_table
         );
+    }
+
+    #[test]
+    fn test_glyf_table_subset() {
+        let g1 = GlyphData {
+            number_of_contours: 1,
+            x_min: 1,
+            y_min: 1,
+            x_max: 1,
+            y_max: 1,
+            description: Vec::new(),
+        };
+        let g2 = GlyphData {
+            number_of_contours: 2,
+            x_min: 2,
+            y_min: 2,
+            x_max: 2,
+            y_max: 2,
+            description: Vec::new(),
+        };
+        let g3 = GlyphData {
+            number_of_contours: 3,
+            x_min: 3,
+            y_min: 3,
+            x_max: 3,
+            y_max: 3,
+            description: Vec::new(),
+        };
+
+        let table = GlyfTable {
+            glyphs: vec![Some(g1), Some(g2.clone()), Some(g3), None],
+        };
+        assert_eq!(
+            table.subset(&[1, 3], ()).as_ref(),
+            &GlyfTable {
+                glyphs: vec![Some(g2), None]
+            }
+        )
     }
 }

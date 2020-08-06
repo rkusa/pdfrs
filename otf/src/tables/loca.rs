@@ -1,5 +1,8 @@
-use std::io;
+use std::borrow::Cow;
+use std::convert::TryFrom;
+use std::{io, iter};
 
+use super::glyf::GlyfTable;
 use super::head::HeadTable;
 use super::maxp::MaxpTable;
 use super::FontTable;
@@ -19,7 +22,7 @@ pub struct LocaTable {
     pub(super) format: Format,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub(super) enum Format {
     Short,
     Long,
@@ -27,7 +30,7 @@ pub(super) enum Format {
 
 impl<'a> FontTable<'a> for LocaTable {
     type UnpackDep = (&'a HeadTable, &'a MaxpTable);
-    type SubsetDep = ();
+    type SubsetDep = &'a GlyfTable;
 
     fn unpack<R: io::Read>(rd: &mut R, (head, maxp): Self::UnpackDep) -> Result<Self, io::Error> {
         let n = maxp.num_glyphs() as usize + 1;
@@ -59,6 +62,23 @@ impl<'a> FontTable<'a> for LocaTable {
         }
         Ok(())
     }
+
+    fn subset(&'a self, _glyph_ids: &[u16], glyf: Self::SubsetDep) -> Cow<'a, Self>
+    where
+        Self: Clone,
+    {
+        Cow::Owned(LocaTable {
+            offsets: iter::once(0)
+                .chain(glyf.glyphs.iter().scan(0, |offset, data| {
+                    if let Some(data) = data {
+                        *offset += data.size_in_byte();
+                    }
+                    u32::try_from(*offset).ok()
+                }))
+                .collect(),
+            format: self.format,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -66,6 +86,7 @@ mod test {
     use std::io::Cursor;
 
     use super::*;
+    use crate::tables::glyf::GlyphData;
     use crate::OffsetTable;
 
     #[test]
@@ -103,5 +124,41 @@ mod test {
             LocaTable::unpack(&mut Cursor::new(buffer), (&head_table, &maxp_table)).unwrap(),
             loca_table
         );
+    }
+
+    #[test]
+    fn test_loca_table_subset() {
+        let g1 = GlyphData {
+            number_of_contours: 1,
+            x_min: 1,
+            y_min: 1,
+            x_max: 1,
+            y_max: 1,
+            description: vec![0; 10],
+        };
+        let g3 = GlyphData {
+            number_of_contours: 3,
+            x_min: 3,
+            y_min: 3,
+            x_max: 3,
+            y_max: 3,
+            description: vec![0; 20],
+        };
+        let glyf = GlyfTable {
+            glyphs: vec![Some(g1), None, None, Some(g3), None],
+        };
+
+        let loca = LocaTable {
+            offsets: Vec::new(),
+            format: Format::Long,
+        };
+        let subset = loca.subset(&[], &glyf);
+        assert_eq!(
+            subset.as_ref(),
+            &LocaTable {
+                offsets: vec![0, 20, 20, 20, 50, 50],
+                format: Format::Long,
+            }
+        )
     }
 }
