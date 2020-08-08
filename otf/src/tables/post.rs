@@ -7,7 +7,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// See spec:
 /// - https://docs.microsoft.com/en-us/typography/opentype/spec/post
 /// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6post.html
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct PostTable {
     major_version: u16,
     minor_version: u16,

@@ -13,6 +13,7 @@ pub struct OpenTypeFont {
     sfnt_version: SfntVersion,
     os2_table: tables::os2::Os2Table,
     cmap_table: tables::cmap::CmapTable,
+    cmap_subtables: Vec<CmapSubtable>,
     glyf_table: tables::glyf::GlyfTable,
     head_table: tables::head::HeadTable,
     hhea_table: tables::hhea::HheaTable,
@@ -23,10 +24,33 @@ pub struct OpenTypeFont {
     post_table: tables::post::PostTable,
 }
 
+#[derive(Debug, PartialEq)]
+struct CmapSubtable {
+    platform_id: u16,
+    encoding_id: u16,
+    subtable: tables::cmap::Subtable,
+}
+
 impl OpenTypeFont {
     pub fn from_slice(data: impl AsRef<[u8]>) -> Result<Self, io::Error> {
         let mut cursor = Cursor::new(data.as_ref());
         let offset_table = OffsetTable::unpack(&mut cursor, ())?;
+
+        let cmap_record = offset_table
+            .get_table_record("cmap")
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "cmap table missing"))?;
+        let cmap_table: tables::cmap::CmapTable =
+            offset_table.unpack_required_table("cmap", (), &mut cursor)?;
+        let mut cmap_subtables = Vec::with_capacity(cmap_table.encoding_records.len());
+        for record in &cmap_table.encoding_records {
+            cursor.set_position((cmap_record.offset + record.offset) as u64);
+            let subtable = tables::cmap::Subtable::unpack(&mut cursor, ())?;
+            cmap_subtables.push(CmapSubtable {
+                platform_id: record.platform_id,
+                encoding_id: record.encoding_id,
+                subtable,
+            });
+        }
 
         let head_table = offset_table.unpack_required_table("head", (), &mut cursor)?;
         let hhea_table = offset_table.unpack_required_table("hhea", (), &mut cursor)?;
@@ -36,7 +60,8 @@ impl OpenTypeFont {
         Ok(OpenTypeFont {
             sfnt_version: offset_table.sfnt_version,
             os2_table: offset_table.unpack_required_table("OS/2", (), &mut cursor)?,
-            cmap_table: offset_table.unpack_required_table("cmap", (), &mut cursor)?,
+            cmap_table,
+            cmap_subtables,
             glyf_table: offset_table.unpack_required_table("glyf", &loca_table, &mut cursor)?,
             hmtx_table: offset_table.unpack_required_table(
                 "hmtx",
@@ -52,7 +77,7 @@ impl OpenTypeFont {
         })
     }
 
-    // Note: currently skips all other tables of the font that are not known to the library.
+    /// Note: currently skips all other tables of the font that are not known to the library.
     pub fn to_writer(&self, mut wr: impl io::Write) -> Result<(), io::Error> {
         let mut tables = Vec::new();
         // reserve space for offset table
@@ -70,6 +95,30 @@ impl OpenTypeFont {
         });
         offset += os2_data.len();
 
+        // cmap subtables
+        let mut cmap_subtables_data = Vec::new();
+        let mut cmap_table = tables::cmap::CmapTable {
+            version: self.cmap_table.version,
+            num_tables: u16::try_from(self.cmap_subtables.len())
+                .ok()
+                .unwrap_or(u16::MAX),
+            encoding_records: Vec::with_capacity(self.cmap_subtables.len()),
+        };
+        // reserve cmap table data
+        let mut subtable_offset = offset + 4 + self.cmap_subtables.len() * 8;
+        for subtable in &self.cmap_subtables {
+            let len_before = cmap_subtables_data.len();
+            subtable.subtable.pack(&mut cmap_subtables_data)?;
+            cmap_table
+                .encoding_records
+                .push(tables::cmap::EncodingRecord {
+                    platform_id: subtable.platform_id,
+                    encoding_id: subtable.encoding_id,
+                    offset: u32::try_from(subtable_offset).ok().unwrap_or(u32::MAX),
+                });
+            subtable_offset += cmap_subtables_data.len() - len_before;
+        }
+
         // cmap table
         let mut cmap_data = Vec::new();
         self.cmap_table.pack(&mut cmap_data)?;
@@ -80,7 +129,7 @@ impl OpenTypeFont {
             offset: u32::try_from(offset).ok().unwrap_or(u32::MAX),
             length: u32::try_from(cmap_data.len()).ok().unwrap_or(u32::MAX),
         });
-        offset += cmap_data.len();
+        offset += cmap_data.len() + cmap_subtables_data.len();
 
         // glyf table
         let mut glyf_data = Vec::new();
@@ -213,6 +262,7 @@ impl OpenTypeFont {
         wr.write_all(&offset_data)?;
         wr.write_all(&os2_data)?;
         wr.write_all(&cmap_data)?;
+        wr.write_all(&cmap_subtables_data)?;
         wr.write_all(&glyf_data)?;
         wr.write_all(&head_data)?;
         wr.write_all(&hhea_data)?;
@@ -464,8 +514,8 @@ mod test {
 
     #[test]
     fn test_writing_font() {
-        let data = include_bytes!("../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
-        let font = OpenTypeFont::from_slice(data).unwrap();
+        let data = include_bytes!("../tests/fonts/Iosevka/iosevka-regular.ttf");
+        let font = OpenTypeFont::from_slice(&data[..]).unwrap();
 
         let mut data = Vec::new();
         font.to_writer(&mut data).unwrap();

@@ -8,7 +8,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// See spec:
 /// - https://docs.microsoft.com/en-us/typography/opentype/spec/name
 /// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6name.html
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum NameTable {
     Format0(Format0NameTable),
     Format1(Format1NameTable),
@@ -48,7 +48,7 @@ impl<'a> FontTable<'a> for NameTable {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Format0NameTable {
     /// Number of name records.
     count: u16,
@@ -93,7 +93,7 @@ impl<'a> FontTable<'a> for Format0NameTable {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Format1NameTable {
     /// Number of name records.
     count: u16,
@@ -154,7 +154,7 @@ impl<'a> FontTable<'a> for Format1NameTable {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct NameRecord {
     /// Platform ID,
     platform_id: u16,
@@ -196,7 +196,7 @@ impl<'a> FontTable<'a> for NameRecord {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct LangTagRecord {
     /// Language-tag string length (in bytes)
     length: u16,

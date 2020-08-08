@@ -28,11 +28,11 @@ use format4::Format4;
 /// there is not a single supported character encoding and subtable combination.
 ///
 /// See OpenType sepc: https://docs.microsoft.com/en-us/typography/opentype/spec/cmap
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct CmapTable {
-    version: u16,
-    num_tables: u16,
-    encoding_records: Vec<EncodingRecord>,
+    pub(crate) version: u16,
+    pub(crate) num_tables: u16,
+    pub(crate) encoding_records: Vec<EncodingRecord>,
 }
 
 impl<'a> FontTable<'a> for CmapTable {
@@ -80,12 +80,12 @@ impl<'a> FontTable<'a> for CmapTable {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct EncodingRecord {
-    platform_id: u16,
-    encoding_id: u16,
+    pub(crate) platform_id: u16,
+    pub(crate) encoding_id: u16,
     /// Byte offset from beginning of table to the subtable for this encoding.
-    offset: u32,
+    pub(crate) offset: u32,
 }
 
 impl<'a> FontTable<'a> for EncodingRecord {

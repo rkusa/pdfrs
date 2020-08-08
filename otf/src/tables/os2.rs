@@ -7,7 +7,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// See spec:
 /// - https://docs.microsoft.com/en-us/typography/opentype/spec/os2
 /// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6OS2.html
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Os2Table {
     /// The version number for the OS/2 table: 0x0000 to 0x0005.
     version: u16,
