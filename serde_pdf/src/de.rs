@@ -338,7 +338,6 @@ where
                                 Ok(c) => c,
                                 Err(_) => return Err(Error::InvalidEscapeSequence),
                             };
-                            eprintln!("Code is {}", code);
                             chars.push(win1252_to_unicode(code)?);
                         }
                         _ => return Err(Error::InvalidEscapeSequence),
@@ -625,7 +624,6 @@ where
         // Parse the opening brace of the map.
         if (self.next_char()?, self.next_char()?) == (Some(b'<'), Some(b'<')) {
             self.discard_whitespace()?;
-            eprintln!("Struct");
 
             // Give the visitor access to each entry of the map.
             let value = visitor.visit_map(SpaceSeparated::new(&mut self))?;
@@ -687,7 +685,6 @@ where
     where
         V: Visitor<'de>,
     {
-        eprintln!("Identifier");
         visitor.visit_string(self.parse_name()?)
     }
 

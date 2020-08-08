@@ -8,27 +8,27 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 #[derive(Debug, PartialEq, Clone)]
 pub struct Format4 {
     /// Should always be `0` since this library does not parse Macintosh CMAPs.
-    pub(super) language: u16,
+    pub(crate) language: u16,
     /// 2 × seg_count.
-    pub(super) seg_count_x2: u16,
+    pub(crate) seg_count_x2: u16,
     /// 2 × (2**floor(log2(seg_count)))
-    pub(super) search_range: u16,
+    pub(crate) search_range: u16,
     /// log2(search_range/2)
-    pub(super) entry_selector: u16,
+    pub(crate) entry_selector: u16,
     /// 2 × seg_count - search_range
-    pub(super) range_shift: u16,
+    pub(crate) range_shift: u16,
     /// End characterCode for each segment, last=0xFFFF.
-    pub(super) end_code: Vec<u16>,
+    pub(crate) end_code: Vec<u16>,
     /// Set to 0.
-    pub(super) reserved_pad: u16,
+    pub(crate) reserved_pad: u16,
     /// Start character code for each segment.
-    pub(super) start_code: Vec<u16>,
+    pub(crate) start_code: Vec<u16>,
     /// Delta for all character codes in segment.
-    pub(super) id_delta: Vec<i16>,
+    pub(crate) id_delta: Vec<i16>,
     /// Offsets into glyph_id_array or 0
-    pub(super) id_range_offset: Vec<u16>,
+    pub(crate) id_range_offset: Vec<u16>,
     /// Glyph index array (arbitrary length)
-    pub(super) glyph_id_array: Vec<u8>,
+    pub(crate) glyph_id_array: Vec<u8>,
 }
 
 impl Format4 {

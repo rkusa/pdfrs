@@ -15,25 +15,25 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6glyf.html
 #[derive(Debug, PartialEq, Clone)]
 pub struct GlyfTable {
-    pub(super) glyphs: Vec<Option<GlyphData>>,
+    pub(crate) glyphs: Vec<Option<GlyphData>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct GlyphData {
     /// If the number of contours is greater than or equal to zero, this is a simple glyph. If
     /// negative, this is a composite glyph — the value -1 should be used for composite glyphs.
-    pub(super) number_of_contours: i16,
+    pub(crate) number_of_contours: i16,
     /// Minimum x for coordinate data.
-    pub(super) x_min: i16,
+    pub(crate) x_min: i16,
     /// Minimum y for coordinate data.
-    pub(super) y_min: i16,
+    pub(crate) y_min: i16,
     /// Maximum x for coordinate data.
-    pub(super) x_max: i16,
+    pub(crate) x_max: i16,
     /// Maximum y for coordinate data.
-    pub(super) y_max: i16,
+    pub(crate) y_max: i16,
     /// The raw glyph description.
     // TODO: parse into actual simple/composit enum?
-    pub(super) description: Vec<u8>,
+    pub(crate) description: Vec<u8>,
 }
 
 impl GlyphData {

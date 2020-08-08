@@ -7,9 +7,9 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Format12 {
-    pub(super) language: u32,
-    pub(super) num_groups: u32,
-    pub(super) sequential_map_groups: Vec<SequentialMapGroup>,
+    pub(crate) language: u32,
+    pub(crate) num_groups: u32,
+    pub(crate) sequential_map_groups: Vec<SequentialMapGroup>,
 }
 
 impl Format12 {

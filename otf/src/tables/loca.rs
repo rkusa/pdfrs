@@ -17,13 +17,13 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 pub struct LocaTable {
     /// Offsets indexed by glyph id. The size of a glyph data block is inferred from the difference
     /// between two consecutive offsets.
-    pub(super) offsets: Vec<u32>,
+    pub(crate) offsets: Vec<u32>,
     // not part of the font, but persisted to keep track of it
-    pub(super) format: Format,
+    pub(crate) format: Format,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub(super) enum Format {
+pub(crate) enum Format {
     Short,
     Long,
 }

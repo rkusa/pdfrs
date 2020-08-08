@@ -14,17 +14,17 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 pub struct HmtxTable {
     /// Paired advance width and left side bearing values for each glyph. Records are indexed by
     /// glyph ID.
-    pub(super) h_metrics: Vec<LongHorMetric>,
+    pub(crate) h_metrics: Vec<LongHorMetric>,
     /// Left side bearings for glyph IDs greater than or equal to numberOfHMetrics.
-    pub(super) left_side_bearings: Vec<i16>,
+    pub(crate) left_side_bearings: Vec<i16>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct LongHorMetric {
     /// Advance width, in font design units.
-    pub(super) advance_width: u16,
+    pub(crate) advance_width: u16,
     /// Glyph left side bearing, in font design units.
-    pub(super) lsb: i16,
+    pub(crate) lsb: i16,
 }
 
 impl<'a> FontTable<'a> for HmtxTable {

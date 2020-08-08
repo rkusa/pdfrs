@@ -115,7 +115,6 @@ where
                 }
                 0x21..=0x7E => continue,
                 _ => {
-                    // eprintln!("FAIL {} {:?}", ch, ch.to_digit(10));
                     return Err(Error::ExpectedBoolean);
                 } // _ => return Err(Error::ExpectedBoolean), // TODO: other error
             }
