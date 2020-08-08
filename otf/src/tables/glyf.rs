@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::io::{self, Read};
-use std::mem;
+use std::{iter, mem};
 
 use super::loca::LocaTable;
 use super::{FontTable, Glyph};
@@ -111,9 +111,14 @@ impl<'a> FontTable<'a> for GlyfTable {
         Self: Clone,
     {
         Cow::Owned(GlyfTable {
-            glyphs: glyphs
-                .iter()
-                .map(|g| self.glyphs.get(g.index as usize).cloned().flatten())
+            // Always include glyph index 0, since this is supposed to be the default glyph
+            glyphs: iter::once(self.glyphs.get(0).cloned())
+                .flatten()
+                .chain(
+                    glyphs
+                        .iter()
+                        .map(|g| self.glyphs.get(g.index as usize).cloned().flatten()),
+                )
                 .collect(),
         })
     }
@@ -175,6 +180,14 @@ mod test {
 
     #[test]
     fn test_glyf_table_subset() {
+        let g0 = GlyphData {
+            number_of_contours: 0,
+            x_min: 0,
+            y_min: 0,
+            x_max: 0,
+            y_max: 0,
+            description: Vec::new(),
+        };
         let g1 = GlyphData {
             number_of_contours: 1,
             x_min: 1,
@@ -201,12 +214,12 @@ mod test {
         };
 
         let table = GlyfTable {
-            glyphs: vec![Some(g1), Some(g2.clone()), Some(g3), None],
+            glyphs: vec![Some(g0.clone()), Some(g1), Some(g2.clone()), Some(g3), None],
         };
         assert_eq!(
-            table.subset(&[Glyph::new(1), Glyph::new(3)], ()).as_ref(),
+            table.subset(&[Glyph::new(2), Glyph::new(4)], ()).as_ref(),
             &GlyfTable {
-                glyphs: vec![Some(g2), None]
+                glyphs: vec![Some(g0), Some(g2), None]
             }
         )
     }

@@ -128,6 +128,14 @@ mod test {
 
     #[test]
     fn test_loca_table_subset() {
+        let g0 = GlyphData {
+            number_of_contours: 0,
+            x_min: 0,
+            y_min: 0,
+            x_max: 0,
+            y_max: 0,
+            description: vec![0; 5],
+        };
         let g1 = GlyphData {
             number_of_contours: 1,
             x_min: 1,
@@ -145,7 +153,7 @@ mod test {
             description: vec![0; 20],
         };
         let glyf = GlyfTable {
-            glyphs: vec![Some(g1), None, None, Some(g3), None],
+            glyphs: vec![Some(g0), Some(g1), None, None, Some(g3), None],
         };
 
         let loca = LocaTable {
@@ -156,7 +164,7 @@ mod test {
         assert_eq!(
             subset.as_ref(),
             &LocaTable {
-                offsets: vec![0, 20, 20, 20, 50, 50],
+                offsets: vec![0, 15, 35, 35, 35, 65, 65],
                 format: Format::Long,
             }
         )
