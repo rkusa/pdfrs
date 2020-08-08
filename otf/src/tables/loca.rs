@@ -5,7 +5,7 @@ use std::{io, iter};
 use super::glyf::GlyfTable;
 use super::head::HeadTable;
 use super::maxp::MaxpTable;
-use super::FontTable;
+use super::{FontTable, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table stores the offsets to the locations of the glyphs in the font, relative to the
@@ -63,7 +63,7 @@ impl<'a> FontTable<'a> for LocaTable {
         Ok(())
     }
 
-    fn subset(&'a self, _glyph_ids: &[u16], glyf: Self::SubsetDep) -> Cow<'a, Self>
+    fn subset(&'a self, _glyphs: &[Glyph], glyf: Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {

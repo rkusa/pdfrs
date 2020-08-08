@@ -4,7 +4,7 @@ use std::io;
 
 use super::head::HeadTable;
 use super::hmtx::HmtxTable;
-use super::FontTable;
+use super::{FontTable, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table contains information for horizontal layout.
@@ -108,7 +108,7 @@ impl<'a> FontTable<'a> for HheaTable {
         Ok(())
     }
 
-    fn subset(&'a self, _glyph_ids: &[u16], (head, hmtx): Self::SubsetDep) -> Cow<'a, Self>
+    fn subset(&'a self, _glyphs: &[Glyph], (head, hmtx): Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {
@@ -206,7 +206,10 @@ mod test {
             left_side_bearings: vec![-3, 9],
         };
         let hhea = HheaTable::default();
-        let subset = hhea.subset(&[0, 1, 2, 3], (&head, &hmtx));
+        let subset = hhea.subset(
+            &[Glyph::new(0), Glyph::new(1), Glyph::new(2), Glyph::new(3)],
+            (&head, &hmtx),
+        );
         assert_eq!(
             subset.as_ref(),
             &HheaTable {

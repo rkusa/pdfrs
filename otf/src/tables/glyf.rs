@@ -3,7 +3,7 @@ use std::io::{self, Read};
 use std::mem;
 
 use super::loca::LocaTable;
-use super::FontTable;
+use super::{FontTable, Glyph};
 use crate::utils::limit_read::LimitRead;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
@@ -106,14 +106,14 @@ impl<'a> FontTable<'a> for GlyfTable {
         Ok(())
     }
 
-    fn subset(&'a self, glyph_ids: &[u16], _dep: Self::SubsetDep) -> Cow<'a, Self>
+    fn subset(&'a self, glyphs: &[Glyph], _dep: Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {
         Cow::Owned(GlyfTable {
-            glyphs: glyph_ids
+            glyphs: glyphs
                 .iter()
-                .map(|i| self.glyphs.get(*i as usize).cloned().flatten())
+                .map(|g| self.glyphs.get(g.index as usize).cloned().flatten())
                 .collect(),
         })
     }
@@ -204,7 +204,7 @@ mod test {
             glyphs: vec![Some(g1), Some(g2.clone()), Some(g3), None],
         };
         assert_eq!(
-            table.subset(&[1, 3], ()).as_ref(),
+            table.subset(&[Glyph::new(1), Glyph::new(3)], ()).as_ref(),
             &GlyfTable {
                 glyphs: vec![Some(g2), None]
             }

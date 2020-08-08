@@ -3,7 +3,7 @@ use std::io;
 
 use super::glyf::GlyfTable;
 use super::loca::{Format as LocaFormat, LocaTable};
-use super::FontTable;
+use super::{FontTable, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// See https://docs.microsoft.com/en-us/typography/opentype/spec/head
@@ -131,7 +131,7 @@ impl<'a> FontTable<'a> for HeadTable {
         Ok(())
     }
 
-    fn subset(&'a self, _glyph_ids: &[u16], (glyf, loca): Self::SubsetDep) -> Cow<'a, Self>
+    fn subset(&'a self, _glyphs: &[Glyph], (glyf, loca): Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {

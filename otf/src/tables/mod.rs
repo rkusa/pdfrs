@@ -19,10 +19,30 @@ pub trait FontTable<'a>: Sized {
     fn unpack<R: io::Read>(rd: &mut R, _dep: Self::UnpackDep) -> Result<Self, io::Error>;
     fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error>;
 
-    fn subset(&'a self, _glyph_ids: &[u16], _dep: Self::SubsetDep) -> Cow<'a, Self>
+    fn subset(&'a self, _glyphs: &[Glyph], _dep: Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {
         Cow::Borrowed(self)
+    }
+}
+
+pub struct Glyph {
+    pub index: u16,
+    pub code_points: Vec<u32>,
+}
+
+impl Glyph {
+    pub fn new(index: u16) -> Self {
+        Glyph {
+            index,
+            code_points: Vec::new(),
+        }
+    }
+}
+
+impl From<u16> for Glyph {
+    fn from(index: u16) -> Self {
+        Glyph::new(index)
     }
 }

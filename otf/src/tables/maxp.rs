@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::io;
 
-use super::FontTable;
+use super::{FontTable, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table establishes the memory requirements for this font.
@@ -99,16 +99,16 @@ impl<'a> FontTable<'a> for MaxpTable {
         Ok(())
     }
 
-    fn subset(&'a self, glyph_ids: &[u16], _: Self::SubsetDep) -> Cow<'a, Self>
+    fn subset(&'a self, glyphs: &[Glyph], _: Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {
         match self {
-            MaxpTable::CFF(table) => match table.subset(glyph_ids, ()) {
+            MaxpTable::CFF(table) => match table.subset(glyphs, ()) {
                 Cow::Borrowed(_) => Cow::Borrowed(self),
                 Cow::Owned(table) => Cow::Owned(MaxpTable::CFF(table)),
             },
-            MaxpTable::TrueType(table) => match table.subset(glyph_ids, ()) {
+            MaxpTable::TrueType(table) => match table.subset(glyphs, ()) {
                 Cow::Borrowed(_) => Cow::Borrowed(self),
                 Cow::Owned(table) => Cow::Owned(MaxpTable::TrueType(table)),
             },
@@ -131,12 +131,12 @@ impl<'a> FontTable<'a> for CffMaxpTable {
         Ok(())
     }
 
-    fn subset(&'a self, glyph_ids: &[u16], _: Self::SubsetDep) -> Cow<'a, Self>
+    fn subset(&'a self, glyphs: &[Glyph], _: Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {
         Cow::Owned(CffMaxpTable {
-            num_glyphs: u16::try_from(glyph_ids.len()).ok().unwrap_or(u16::MAX),
+            num_glyphs: u16::try_from(glyphs.len()).ok().unwrap_or(u16::MAX),
         })
     }
 }
@@ -182,12 +182,12 @@ impl<'a> FontTable<'a> for TrueTypeMaxpTable {
         Ok(())
     }
 
-    fn subset(&'a self, glyph_ids: &[u16], _: Self::SubsetDep) -> Cow<'a, Self>
+    fn subset(&'a self, glyphs: &[Glyph], _: Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {
         Cow::Owned(TrueTypeMaxpTable {
-            num_glyphs: u16::try_from(glyph_ids.len()).ok().unwrap_or(u16::MAX),
+            num_glyphs: u16::try_from(glyphs.len()).ok().unwrap_or(u16::MAX),
             ..self.to_owned()
         })
     }
@@ -280,11 +280,11 @@ mod test {
             max_component_elements: 5,
             max_component_depth: 4,
         };
-        let glyph_ids = &[1, 2, 3];
-        let subset = maxp.subset(glyph_ids, ());
+        let glyphs = &[Glyph::new(1), Glyph::new(2), Glyph::new(3)];
+        let subset = maxp.subset(glyphs, ());
         assert_eq!(subset.num_glyphs, 3);
 
-        // everything else is unchanged
+        // everything else is unchangde
         assert_eq!(subset.max_points, maxp.max_points);
         assert_eq!(subset.max_contours, maxp.max_contours);
         assert_eq!(subset.max_component_points, maxp.max_component_points);
@@ -305,7 +305,7 @@ mod test {
         // subset container struct
         let maxp_table = MaxpTable::TrueType(maxp.clone());
         assert_eq!(
-            maxp_table.subset(glyph_ids, ()).into_owned(),
+            maxp_table.subset(glyphs, ()).into_owned(),
             MaxpTable::TrueType(subset.into_owned())
         );
     }
@@ -313,7 +313,7 @@ mod test {
     #[test]
     fn test_maxp_cff_subset() {
         let maxp = MaxpTable::CFF(CffMaxpTable { num_glyphs: 10 });
-        let subset = maxp.subset(&[1, 2, 3], ());
+        let subset = maxp.subset(&[Glyph::new(1), Glyph::new(2), Glyph::new(3)], ());
         assert_eq!(subset.num_glyphs(), 3)
     }
 }

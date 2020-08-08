@@ -3,7 +3,7 @@ use std::io;
 
 use super::hhea::HheaTable;
 use super::maxp::MaxpTable;
-use super::FontTable;
+use super::{FontTable, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table contains glyph metrics used for horizontal text layout.
@@ -73,24 +73,23 @@ impl<'a> FontTable<'a> for HmtxTable {
         Ok(())
     }
 
-    fn subset(&'a self, glyph_ids: &[u16], _: Self::SubsetDep) -> Cow<'a, Self>
+    fn subset(&'a self, glyphs: &[Glyph], _: Self::SubsetDep) -> Cow<'a, Self>
     where
         Self: Clone,
     {
-        let (h_metrics, left_side_bearings) = glyph_ids
+        let (h_metrics, left_side_bearings) = glyphs
             .iter()
-            .cloned()
-            .partition::<Vec<u16>, _>(|id| (*id as usize) < self.h_metrics.len());
+            .partition::<Vec<&Glyph>, _>(|g| (g.index as usize) < self.h_metrics.len());
         let h_metrics = h_metrics
             .into_iter()
-            .filter_map(|id| self.h_metrics.get(id as usize))
+            .filter_map(|g| self.h_metrics.get(g.index as usize))
             .cloned()
             .collect();
         let left_side_bearings = left_side_bearings
             .into_iter()
-            .filter_map(|id| {
+            .filter_map(|g| {
                 self.left_side_bearings
-                    .get((id as usize) - self.h_metrics.len())
+                    .get((g.index as usize) - self.h_metrics.len())
             })
             .cloned()
             .collect();
@@ -198,7 +197,8 @@ mod test {
         };
 
         assert_eq!(
-            hmtx.subset(&[1, 3, 6], ()).as_ref(),
+            hmtx.subset(&[Glyph::new(1), Glyph::new(3), Glyph::new(6)], ())
+                .as_ref(),
             &HmtxTable {
                 h_metrics: vec![metric2, metric4],
                 left_side_bearings: vec![7]
