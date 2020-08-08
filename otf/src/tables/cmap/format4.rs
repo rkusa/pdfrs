@@ -195,6 +195,18 @@ impl<'a> FontTable<'a> for Format4 {
             }))
             .collect::<Vec<_>>();
 
+        // merge adjacent segments
+        let segments: Vec<Segment> = segments.into_iter().fold(Vec::new(), |mut segments, s| {
+            if let Some(prev) = segments.last_mut() {
+                if prev.id_delta == s.id_delta && prev.end.saturating_add(1) == s.start {
+                    prev.end = s.start;
+                    return segments;
+                }
+            }
+            segments.push(s);
+            segments
+        });
+
         let mut id_range_offset: Vec<u16> = vec![0; segments.len()];
         let glyph_id_array = vec![0; 2]; // 0u16
 
@@ -359,7 +371,7 @@ mod test {
         assert_eq!(subset.glyph_id(u16::MAX as u32), None);
 
         // should update header
-        assert_eq!(subset.seg_count_x2, 18);
+        assert_eq!(subset.seg_count_x2, 12);
         assert_eq!(subset.search_range, 256);
         assert_eq!(subset.entry_selector, 7);
         assert_eq!(subset.range_shift, 166);
