@@ -1,9 +1,10 @@
 mod format12;
 mod format4;
 
+use std::borrow::Cow;
 use std::{io, mem};
 
-use super::FontTable;
+use super::{FontTable, Glyph};
 use crate::utils::limit_read::LimitRead;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use format12::Format12;
@@ -107,7 +108,7 @@ impl<'a> FontTable<'a> for EncodingRecord {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Subtable {
     Format4(Format4),
     Format12(Format12),
@@ -187,6 +188,25 @@ impl<'a> FontTable<'a> for Subtable {
 
         wr.write_all(&buf)?;
         Ok(())
+    }
+
+    fn subset(&'a self, glyphs: &[Glyph], _dep: Self::SubsetDep) -> Cow<'a, Self>
+    where
+        Self: Clone,
+    {
+        Cow::Owned(match self {
+            Subtable::Format4(subtable) => {
+                // Note: it could be checked here if the subset contains a code-point > u16:MAX and
+                // if so to create a format 12 subset instead. However, if the font was initially
+                // parsed as a format 4 font, it does not contain such code-codepoints. The
+                // fallback to format 12 would only be necessary if the library is updated to
+                // actively update/extend an existing font instead of just reading and subsetting.
+                Subtable::Format4(subtable.subset(glyphs, ()).into_owned())
+            }
+            Subtable::Format12(subtable) => {
+                Subtable::Format12(subtable.subset(glyphs, ()).into_owned())
+            }
+        })
     }
 }
 
