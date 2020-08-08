@@ -360,6 +360,9 @@ mod test {
             }))
             .collect::<Vec<_>>();
         let subset = format4.subset(&glyphs, ());
+
+        assert_eq!(subset.start_code.len(), 6);
+
         for (i, g) in glyphs.iter().enumerate() {
             for c in &g.code_points {
                 // i + 1, since 0 should be the missing glyph
