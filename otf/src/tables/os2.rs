@@ -1,6 +1,8 @@
+use std::borrow::Cow;
+use std::convert::TryFrom;
 use std::io;
 
-use super::FontTable;
+use super::{FontTable, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table consists of a set of metrics and other data that are required for a font.
@@ -294,11 +296,31 @@ impl<'a> FontTable<'a> for Os2Table {
         Ok(())
     }
 
-    // TODO: implement subsetting to update the following values?
-    // - x_avg_char_width
-    // - us_first_char_index
-    // - us_default_char
-    // - us_break_char
+    fn subset(&'a self, glyphs: &[Glyph], _dep: Self::SubsetDep) -> Cow<'a, Self>
+    where
+        Self: Clone,
+    {
+        // TODO: implement subsetting to update the following values?
+        // - x_avg_char_width
+        // - us_default_char
+        // - us_break_char
+        // Tests
+        Cow::Owned(Os2Table {
+            us_first_char_index: glyphs
+                .iter()
+                .flat_map(|g| g.code_points.iter())
+                .filter_map(|c| u16::try_from(*c).ok())
+                .min()
+                .unwrap_or(0),
+            us_last_char_index: glyphs
+                .iter()
+                .flat_map(|g| g.code_points.iter())
+                .filter_map(|c| u16::try_from(*c).ok())
+                .max()
+                .unwrap_or(0),
+            ..self.clone()
+        })
+    }
 }
 
 #[cfg(test)]

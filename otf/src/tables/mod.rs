@@ -27,6 +27,7 @@ pub trait FontTable<'a>: Sized {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct Glyph {
     pub index: u16,
     pub code_points: Vec<u32>,

@@ -136,7 +136,8 @@ impl<'a> FontTable<'a> for CffMaxpTable {
         Self: Clone,
     {
         Cow::Owned(CffMaxpTable {
-            num_glyphs: u16::try_from(glyphs.len()).ok().unwrap_or(u16::MAX),
+            // +1 since glyph 0 is always additionally added
+            num_glyphs: u16::try_from(glyphs.len() + 1).ok().unwrap_or(u16::MAX),
         })
     }
 }
@@ -187,7 +188,8 @@ impl<'a> FontTable<'a> for TrueTypeMaxpTable {
         Self: Clone,
     {
         Cow::Owned(TrueTypeMaxpTable {
-            num_glyphs: u16::try_from(glyphs.len()).ok().unwrap_or(u16::MAX),
+            // +1 since glyph 0 is always additionally added
+            num_glyphs: u16::try_from(glyphs.len() + 1).ok().unwrap_or(u16::MAX),
             ..self.to_owned()
         })
     }
@@ -282,7 +284,8 @@ mod test {
         };
         let glyphs = &[Glyph::new(1), Glyph::new(2), Glyph::new(3)];
         let subset = maxp.subset(glyphs, ());
-        assert_eq!(subset.num_glyphs, 3);
+        // 4 since glyph 0 is always included
+        assert_eq!(subset.num_glyphs, 4);
 
         // everything else is unchangde
         assert_eq!(subset.max_points, maxp.max_points);
@@ -314,6 +317,7 @@ mod test {
     fn test_maxp_cff_subset() {
         let maxp = MaxpTable::CFF(CffMaxpTable { num_glyphs: 10 });
         let subset = maxp.subset(&[Glyph::new(1), Glyph::new(2), Glyph::new(3)], ());
-        assert_eq!(subset.num_glyphs(), 3)
+        // 4 since glyph 0 is always included
+        assert_eq!(subset.num_glyphs(), 4)
     }
 }

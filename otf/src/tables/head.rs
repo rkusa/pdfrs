@@ -225,6 +225,7 @@ mod test {
             x_max: 3,
             y_max: 4,
             description: Vec::new(),
+            composite_glyph_index: None,
         };
         let g4 = GlyphData {
             number_of_contours: 2,
@@ -233,6 +234,7 @@ mod test {
             x_max: 2,
             y_max: 1,
             description: Vec::new(),
+            composite_glyph_index: None,
         };
         let glyf = GlyfTable {
             glyphs: vec![None, Some(g2), None, Some(g4), None],

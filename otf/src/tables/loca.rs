@@ -135,6 +135,7 @@ mod test {
             x_max: 0,
             y_max: 0,
             description: vec![0; 5],
+            composite_glyph_index: None,
         };
         let g1 = GlyphData {
             number_of_contours: 1,
@@ -143,6 +144,7 @@ mod test {
             x_max: 1,
             y_max: 1,
             description: vec![0; 10],
+            composite_glyph_index: None,
         };
         let g3 = GlyphData {
             number_of_contours: 3,
@@ -151,6 +153,7 @@ mod test {
             x_max: 3,
             y_max: 3,
             description: vec![0; 20],
+            composite_glyph_index: None,
         };
         let glyf = GlyfTable {
             glyphs: vec![Some(g0), Some(g1), None, None, Some(g3), None],

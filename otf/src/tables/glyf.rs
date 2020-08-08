@@ -1,5 +1,6 @@
 use std::borrow::Cow;
-use std::io::{self, Read};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::io::{self, Cursor, Read};
 use std::{iter, mem};
 
 use super::loca::LocaTable;
@@ -34,11 +35,48 @@ pub struct GlyphData {
     /// The raw glyph description.
     // TODO: parse into actual simple/composit enum?
     pub(crate) description: Vec<u8>,
+    /// This is the glyph index of the first component if the glyph is a composite glyph.
+    pub(crate) composite_glyph_index: Option<u16>,
 }
 
 impl GlyphData {
     pub fn size_in_byte(&self) -> usize {
         mem::size_of::<i16>() * 5 + self.description.len()
+    }
+}
+
+impl GlyfTable {
+    pub(crate) fn expand_composite_glyphs(&self, glyphs: &[Glyph]) -> Vec<Glyph> {
+        // collect all composite glyph components
+        let mut visited: HashSet<u16> = HashSet::new();
+        let mut ordered = Vec::new();
+        let mut all_glyphs: VecDeque<u16> = glyphs.iter().map(|g| g.index).collect();
+
+        while let Some(ix) = all_glyphs.pop_front() {
+            if visited.contains(&ix) {
+                continue;
+            }
+
+            if let Some(Some(g)) = self.glyphs.get(ix as usize) {
+                if let Some(ci) = g.composite_glyph_index {
+                    if !visited.contains(&ci) {
+                        all_glyphs.push_back(ci);
+                    }
+                }
+            }
+
+            visited.insert(ix);
+            ordered.push(ix);
+        }
+
+        glyphs
+            .iter()
+            .cloned()
+            .chain(ordered.into_iter().skip(glyphs.len()).map(|index| Glyph {
+                index,
+                code_points: Vec::new(),
+            }))
+            .collect()
     }
 }
 
@@ -74,8 +112,16 @@ impl<'a> FontTable<'a> for GlyfTable {
             let x_max = limit_read.read_i16::<BigEndian>()?;
             let y_max = limit_read.read_i16::<BigEndian>()?;
 
-            let mut description = Vec::with_capacity(end - start - mem::size_of::<i16>() * 5);
+            let mut description = Vec::with_capacity(end - start - mem::size_of::<i16>() * 5 + 128);
             limit_read.read_to_end(&mut description)?;
+
+            let composite_glyph_index = if number_of_contours < 0 {
+                let mut rd = Cursor::new(&description);
+                let _flags = rd.read_i16::<BigEndian>()?;
+                Some(rd.read_u16::<BigEndian>()?)
+            } else {
+                None
+            };
 
             glyphs.push(Some(GlyphData {
                 number_of_contours,
@@ -84,6 +130,7 @@ impl<'a> FontTable<'a> for GlyfTable {
                 x_max,
                 y_max,
                 description,
+                composite_glyph_index,
             }));
 
             pos = end;
@@ -100,7 +147,13 @@ impl<'a> FontTable<'a> for GlyfTable {
                 wr.write_i16::<BigEndian>(data.y_min)?;
                 wr.write_i16::<BigEndian>(data.x_max)?;
                 wr.write_i16::<BigEndian>(data.y_max)?;
-                wr.write_all(&data.description)?;
+                if let Some(ci) = data.composite_glyph_index {
+                    wr.write_all(&data.description[..2])?;
+                    wr.write_u16::<BigEndian>(ci)?;
+                    wr.write_all(&data.description[4..])?;
+                } else {
+                    wr.write_all(&data.description)?;
+                }
             }
         }
         Ok(())
@@ -110,15 +163,31 @@ impl<'a> FontTable<'a> for GlyfTable {
     where
         Self: Clone,
     {
+        let old_to_new: HashMap<u16, u16> = glyphs
+            .iter()
+            .enumerate()
+            .map(|(i, g)| (g.index, (i + 1) as u16))
+            .collect();
         Cow::Owned(GlyfTable {
             // Always include glyph index 0, since this is supposed to be the default glyph
             glyphs: iter::once(self.glyphs.get(0).cloned())
                 .flatten()
-                .chain(
-                    glyphs
-                        .iter()
-                        .map(|g| self.glyphs.get(g.index as usize).cloned().flatten()),
-                )
+                .chain(glyphs.iter().map(|g| {
+                    self.glyphs
+                        .get(g.index as usize)
+                        .cloned()
+                        .flatten()
+                        .map(|mut g| {
+                            if let Some(i) = g.composite_glyph_index.take() {
+                                g.composite_glyph_index = old_to_new.get(&i).cloned();
+                                if let Some(new_ix) = g.composite_glyph_index {
+                                    let _ =
+                                        (&mut g.description[2..4]).write_u16::<BigEndian>(new_ix);
+                                }
+                            }
+                            g
+                        })
+                }))
                 .collect(),
         })
     }
@@ -132,6 +201,7 @@ mod test {
     use crate::tables::head::HeadTable;
     use crate::tables::maxp::MaxpTable;
     use crate::OffsetTable;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_glypg_data_size_in_bytes() {
@@ -142,6 +212,7 @@ mod test {
             x_max: 1,
             y_max: 1,
             description: vec![0; 10],
+            composite_glyph_index: None,
         };
         assert_eq!(g.size_in_byte(), 20);
     }
@@ -187,6 +258,7 @@ mod test {
             x_max: 0,
             y_max: 0,
             description: Vec::new(),
+            composite_glyph_index: None,
         };
         let g1 = GlyphData {
             number_of_contours: 1,
@@ -195,6 +267,7 @@ mod test {
             x_max: 1,
             y_max: 1,
             description: Vec::new(),
+            composite_glyph_index: None,
         };
         let g2 = GlyphData {
             number_of_contours: 2,
@@ -203,6 +276,7 @@ mod test {
             x_max: 2,
             y_max: 2,
             description: Vec::new(),
+            composite_glyph_index: None,
         };
         let g3 = GlyphData {
             number_of_contours: 3,
@@ -211,6 +285,7 @@ mod test {
             x_max: 3,
             y_max: 3,
             description: Vec::new(),
+            composite_glyph_index: None,
         };
 
         let table = GlyfTable {

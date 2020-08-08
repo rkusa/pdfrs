@@ -9,3 +9,6 @@ edition = "2018"
 [dependencies]
 deku = "0.7"
 byteorder = "1.3"
+
+[dev-dependencies]
+pretty_assertions = "0.6"

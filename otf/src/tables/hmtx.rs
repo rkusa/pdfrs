@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::io;
+use std::{io, iter};
 
 use super::hhea::HheaTable;
 use super::maxp::MaxpTable;
@@ -77,20 +77,18 @@ impl<'a> FontTable<'a> for HmtxTable {
     where
         Self: Clone,
     {
-        let (h_metrics, left_side_bearings) = glyphs
-            .iter()
-            .partition::<Vec<&Glyph>, _>(|g| (g.index as usize) < self.h_metrics.len());
+        // Always add default glyph 0
+        let (h_metrics, left_side_bearings) = iter::once(0)
+            .chain(glyphs.iter().map(|g| g.index as usize))
+            .partition::<Vec<usize>, _>(|ix| *ix < self.h_metrics.len());
         let h_metrics = h_metrics
             .into_iter()
-            .filter_map(|g| self.h_metrics.get(g.index as usize))
+            .filter_map(|ix| self.h_metrics.get(ix))
             .cloned()
             .collect();
         let left_side_bearings = left_side_bearings
             .into_iter()
-            .filter_map(|g| {
-                self.left_side_bearings
-                    .get((g.index as usize) - self.h_metrics.len())
-            })
+            .filter_map(|ix| self.left_side_bearings.get((ix) - self.h_metrics.len()))
             .cloned()
             .collect();
         Cow::Owned(HmtxTable {
@@ -183,7 +181,7 @@ mod test {
 
         let hmtx = HmtxTable {
             h_metrics: vec![
-                metric1,         // glyph 0
+                metric1.clone(), // glyph 0
                 metric2.clone(), // glyph 1
                 metric3,         // glyph 2
                 metric4.clone(), // glyph 3
@@ -200,7 +198,7 @@ mod test {
             hmtx.subset(&[Glyph::new(1), Glyph::new(3), Glyph::new(6)], ())
                 .as_ref(),
             &HmtxTable {
-                h_metrics: vec![metric2, metric4],
+                h_metrics: vec![metric1, metric2, metric4],
                 left_side_bearings: vec![7]
             }
         );

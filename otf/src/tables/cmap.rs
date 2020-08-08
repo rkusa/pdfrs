@@ -115,8 +115,6 @@ pub enum Subtable {
 }
 
 impl Subtable {
-    // TODO: remove allow unusued
-    #[allow(unused)]
     pub fn glyph_id(&self, codepoint: u32) -> Option<u16> {
         match self {
             Subtable::Format4(subtable) => subtable.glyph_id(codepoint),
