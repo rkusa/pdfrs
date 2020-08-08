@@ -1,9 +1,9 @@
 use std::borrow::Cow;
-use std::io;
+use std::io::{self, Cursor};
 
 use super::glyf::GlyfTable;
 use super::loca::{Format as LocaFormat, LocaTable};
-use super::{FontTable, Glyph};
+use super::{FontTable, Glyph, NamedTable};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// See https://docs.microsoft.com/en-us/typography/opentype/spec/head
@@ -75,11 +75,20 @@ pub struct HeadTable {
     pub(crate) glyph_data_format: i16,
 }
 
+impl NamedTable for HeadTable {
+    fn name() -> &'static str {
+        "head"
+    }
+}
+
 impl<'a> FontTable<'a> for HeadTable {
     type UnpackDep = ();
     type SubsetDep = (&'a GlyfTable, &'a LocaTable);
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         let major_version = rd.read_u16::<BigEndian>()?;
         let minor_version = rd.read_u16::<BigEndian>()?;
 
@@ -211,7 +220,7 @@ mod test {
         let mut buffer = Vec::new();
         head_table.pack(&mut buffer).unwrap();
         assert_eq!(
-            HeadTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
+            HeadTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             head_table
         );
     }

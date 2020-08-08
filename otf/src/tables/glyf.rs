@@ -4,7 +4,7 @@ use std::io::{self, Cursor, Read};
 use std::{iter, mem};
 
 use super::loca::LocaTable;
-use super::{FontTable, Glyph};
+use super::{FontTable, Glyph, NamedTable};
 use crate::utils::limit_read::LimitRead;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
@@ -80,11 +80,20 @@ impl GlyfTable {
     }
 }
 
+impl NamedTable for GlyfTable {
+    fn name() -> &'static str {
+        "glyf"
+    }
+}
+
 impl<'a> FontTable<'a> for GlyfTable {
     type UnpackDep = &'a LocaTable;
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(mut rd: &mut R, loca: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        mut rd: &mut Cursor<R>,
+        loca: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         let mut glyphs = Vec::with_capacity(loca.offsets.len().saturating_sub(1));
 
         let mut pos = 0;
@@ -244,7 +253,7 @@ mod test {
         let mut buffer = Vec::new();
         glyf_table.pack(&mut buffer).unwrap();
         assert_eq!(
-            GlyfTable::unpack(&mut Cursor::new(buffer), &loca_table).unwrap(),
+            GlyfTable::unpack(&mut Cursor::new(&buffer[..]), &loca_table).unwrap(),
             glyf_table
         );
     }

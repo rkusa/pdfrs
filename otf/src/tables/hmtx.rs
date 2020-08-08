@@ -1,9 +1,10 @@
 use std::borrow::Cow;
-use std::{io, iter};
+use std::io::{self, Cursor};
+use std::iter;
 
 use super::hhea::HheaTable;
 use super::maxp::MaxpTable;
-use super::{FontTable, Glyph};
+use super::{FontTable, Glyph, NamedTable};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table contains glyph metrics used for horizontal text layout.
@@ -27,12 +28,18 @@ pub struct LongHorMetric {
     pub(crate) lsb: i16,
 }
 
+impl NamedTable for HmtxTable {
+    fn name() -> &'static str {
+        "hmtx"
+    }
+}
+
 impl<'a> FontTable<'a> for HmtxTable {
     type UnpackDep = (&'a HheaTable, &'a MaxpTable);
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(
-        mut rd: &mut R,
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        mut rd: &mut Cursor<R>,
         (hhea, maxp): Self::UnpackDep,
     ) -> Result<Self, io::Error> {
         let mut h_metrics = Vec::with_capacity(hhea.number_of_h_metrics as usize);
@@ -102,7 +109,10 @@ impl<'a> FontTable<'a> for LongHorMetric {
     type UnpackDep = ();
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         Ok(LongHorMetric {
             advance_width: rd.read_u16::<BigEndian>()?,
             lsb: rd.read_i16::<BigEndian>()?,
@@ -151,7 +161,7 @@ mod test {
         let mut buffer = Vec::new();
         hmtx_table.pack(&mut buffer).unwrap();
         assert_eq!(
-            HmtxTable::unpack(&mut Cursor::new(buffer), (&hhea_table, &maxp_table)).unwrap(),
+            HmtxTable::unpack(&mut Cursor::new(&buffer[..]), (&hhea_table, &maxp_table)).unwrap(),
             hmtx_table
         );
     }

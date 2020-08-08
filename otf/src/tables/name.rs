@@ -1,6 +1,6 @@
-use std::io;
+use std::io::{self, Cursor, Read};
 
-use super::FontTable;
+use super::{FontTable, NamedTable};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table includes human-readable names for features and settings, copyright notices,
@@ -14,11 +14,20 @@ pub enum NameTable {
     Format1(Format1NameTable),
 }
 
+impl NamedTable for NameTable {
+    fn name() -> &'static str {
+        "name"
+    }
+}
+
 impl<'a> FontTable<'a> for NameTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        mut rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         let format = rd.read_u16::<BigEndian>()?;
         match format {
             0 => Ok(NameTable::Format0(Format0NameTable::unpack(&mut rd, ())?)),
@@ -64,7 +73,10 @@ impl<'a> FontTable<'a> for Format0NameTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        mut rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         let count = rd.read_u16::<BigEndian>()?;
         let offset = rd.read_u16::<BigEndian>()?;
         let mut name_records = Vec::with_capacity(count as usize);
@@ -113,7 +125,10 @@ impl<'a> FontTable<'a> for Format1NameTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        mut rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         let count = rd.read_u16::<BigEndian>()?;
         let offset = rd.read_u16::<BigEndian>()?;
         let mut name_records = Vec::with_capacity(count as usize);
@@ -174,7 +189,10 @@ impl<'a> FontTable<'a> for NameRecord {
     type UnpackDep = ();
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         Ok(NameRecord {
             platform_id: rd.read_u16::<BigEndian>()?,
             encoding_id: rd.read_u16::<BigEndian>()?,
@@ -208,7 +226,10 @@ impl<'a> FontTable<'a> for LangTagRecord {
     type UnpackDep = ();
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         Ok(LangTagRecord {
             length: rd.read_u16::<BigEndian>()?,
             offset: rd.read_u16::<BigEndian>()?,
@@ -249,7 +270,7 @@ mod test {
         let mut buffer = Vec::new();
         name_table.pack(&mut buffer).unwrap();
         assert_eq!(
-            NameTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
+            NameTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             name_table
         );
     }

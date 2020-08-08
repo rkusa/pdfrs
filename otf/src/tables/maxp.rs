@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 use std::convert::TryFrom;
-use std::io;
+use std::io::{self, Cursor};
 
-use super::{FontTable, Glyph};
+use super::{FontTable, Glyph, NamedTable};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table establishes the memory requirements for this font.
@@ -66,11 +66,20 @@ impl MaxpTable {
     }
 }
 
+impl NamedTable for MaxpTable {
+    fn name() -> &'static str {
+        "maxp"
+    }
+}
+
 impl<'a> FontTable<'a> for MaxpTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(mut rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        mut rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         let version = rd.read_u32::<BigEndian>()?;
         match version {
             0x00005000 => Ok(MaxpTable::CFF(CffMaxpTable::unpack(&mut rd, ())?)),
@@ -120,7 +129,10 @@ impl<'a> FontTable<'a> for CffMaxpTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         Ok(CffMaxpTable {
             num_glyphs: rd.read_u16::<BigEndian>()?,
         })
@@ -146,7 +158,10 @@ impl<'a> FontTable<'a> for TrueTypeMaxpTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         Ok(TrueTypeMaxpTable {
             num_glyphs: rd.read_u16::<BigEndian>()?,
             max_points: rd.read_u16::<BigEndian>()?,
@@ -235,7 +250,7 @@ mod test {
         let mut buffer = Vec::new();
         maxp_table.pack(&mut buffer).unwrap();
         assert_eq!(
-            MaxpTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
+            MaxpTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             maxp_table
         );
     }
@@ -246,7 +261,7 @@ mod test {
             0x00, 0x00, 0x50, 0x00, // version
             0x22, 0xC2, // number glyphs
         ];
-        let maxp_table = MaxpTable::unpack(&mut &data[..], ()).unwrap();
+        let maxp_table = MaxpTable::unpack(&mut Cursor::new(&data[..]), ()).unwrap();
 
         match &maxp_table {
             MaxpTable::CFF(table) => {
@@ -259,7 +274,7 @@ mod test {
         let mut buffer = Vec::new();
         maxp_table.pack(&mut buffer).unwrap();
         assert_eq!(
-            MaxpTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
+            MaxpTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             maxp_table
         );
     }

@@ -1,11 +1,12 @@
 use std::borrow::Cow;
 use std::convert::TryFrom;
-use std::{io, iter};
+use std::io::{self, Cursor};
+use std::iter;
 
 use super::glyf::GlyfTable;
 use super::head::HeadTable;
 use super::maxp::MaxpTable;
-use super::{FontTable, Glyph};
+use super::{FontTable, Glyph, NamedTable};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table stores the offsets to the locations of the glyphs in the font, relative to the
@@ -28,11 +29,20 @@ pub(crate) enum Format {
     Long,
 }
 
+impl NamedTable for LocaTable {
+    fn name() -> &'static str {
+        "loca"
+    }
+}
+
 impl<'a> FontTable<'a> for LocaTable {
     type UnpackDep = (&'a HeadTable, &'a MaxpTable);
     type SubsetDep = &'a GlyfTable;
 
-    fn unpack<R: io::Read>(rd: &mut R, (head, maxp): Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        rd: &mut Cursor<R>,
+        (head, maxp): Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         let n = maxp.num_glyphs() as usize + 1;
         let mut offsets = Vec::with_capacity(n);
         for _ in 0..n {
@@ -121,7 +131,7 @@ mod test {
         let mut buffer = Vec::new();
         loca_table.pack(&mut buffer).unwrap();
         assert_eq!(
-            LocaTable::unpack(&mut Cursor::new(buffer), (&head_table, &maxp_table)).unwrap(),
+            LocaTable::unpack(&mut Cursor::new(&buffer[..]), (&head_table, &maxp_table)).unwrap(),
             loca_table
         );
     }

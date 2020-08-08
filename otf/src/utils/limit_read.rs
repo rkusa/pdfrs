@@ -1,4 +1,5 @@
-use std::io;
+use std::convert::AsRef;
+use std::io::{self, Cursor};
 
 pub struct LimitRead<T: io::Read> {
     inner: T,
@@ -19,6 +20,20 @@ where
     }
 }
 
+impl<'a> LimitRead<&'a [u8]> {
+    pub fn from_cursor<C>(inner: &'a Cursor<C>, limit: usize) -> Self
+    where
+        C: AsRef<[u8]> + 'a,
+    {
+        let pos = inner.position() as usize;
+        Self {
+            inner: &inner.get_ref().as_ref()[pos..],
+            limit,
+            already_read: 0,
+        }
+    }
+}
+
 impl<T> io::Read for LimitRead<T>
 where
     T: io::Read,
@@ -32,6 +47,15 @@ where
         let n = self.inner.read(&mut buf[..cap])?;
         self.already_read += n;
         Ok(n)
+    }
+}
+
+impl<T> AsRef<[u8]> for LimitRead<T>
+where
+    T: io::Read + AsRef<[u8]>,
+{
+    fn as_ref(&self) -> &[u8] {
+        &self.inner.as_ref()[..self.limit]
     }
 }
 

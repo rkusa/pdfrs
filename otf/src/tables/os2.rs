@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 use std::convert::TryFrom;
-use std::io;
+use std::io::{self, Cursor, Read};
 
-use super::{FontTable, Glyph};
+use super::{FontTable, Glyph, NamedTable};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table consists of a set of metrics and other data that are required for a font.
@@ -121,11 +121,20 @@ pub struct Os2Table {
     us_upper_optical_point_size: u16,
 }
 
+impl NamedTable for Os2Table {
+    fn name() -> &'static str {
+        "OS/2"
+    }
+}
+
 impl<'a> FontTable<'a> for Os2Table {
     type UnpackDep = ();
     type SubsetDep = ();
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         let version = rd.read_u16::<BigEndian>()?;
         let x_avg_char_width = rd.read_i16::<BigEndian>()?;
         let us_weight_class = rd.read_u16::<BigEndian>()?;
@@ -384,7 +393,7 @@ mod test {
         let mut buffer = Vec::new();
         os2_table.pack(&mut buffer).unwrap();
         assert_eq!(
-            Os2Table::unpack(&mut Cursor::new(buffer), ()).unwrap(),
+            Os2Table::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             os2_table
         );
     }

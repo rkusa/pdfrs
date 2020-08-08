@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 use std::convert::TryFrom;
-use std::io;
+use std::io::{self, Cursor};
 
 use super::head::HeadTable;
 use super::hmtx::HmtxTable;
-use super::{FontTable, Glyph};
+use super::{FontTable, Glyph, NamedTable};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table contains information for horizontal layout.
@@ -45,11 +45,20 @@ pub struct HheaTable {
     pub number_of_h_metrics: u16,
 }
 
+impl NamedTable for HheaTable {
+    fn name() -> &'static str {
+        "hhea"
+    }
+}
+
 impl<'a> FontTable<'a> for HheaTable {
     type UnpackDep = ();
     type SubsetDep = (&'a HeadTable, &'a HmtxTable);
 
-    fn unpack<R: io::Read>(rd: &mut R, _: Self::UnpackDep) -> Result<Self, io::Error> {
+    fn unpack<R: io::Read + AsRef<[u8]>>(
+        rd: &mut Cursor<R>,
+        _: Self::UnpackDep,
+    ) -> Result<Self, io::Error> {
         let major_version = rd.read_u16::<BigEndian>()?;
         let minor_version = rd.read_u16::<BigEndian>()?;
         let ascent = rd.read_i16::<BigEndian>()?;
@@ -180,7 +189,7 @@ mod test {
         let mut buffer = Vec::new();
         hhea_table.pack(&mut buffer).unwrap();
         assert_eq!(
-            HheaTable::unpack(&mut Cursor::new(buffer), ()).unwrap(),
+            HheaTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             hhea_table
         );
     }
