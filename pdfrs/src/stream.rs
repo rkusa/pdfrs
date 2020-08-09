@@ -132,7 +132,7 @@ impl<W: Write + Unpin> Stream<W> {
         writeln!(self, "{:.3} {:.3} {:.3} sc", c1, c2, c3).await
     }
 
-    pub async fn show_text_string(&mut self, text: &str, font: &dyn Font) -> Result<(), io::Error> {
+    pub async fn show_text_string(&mut self, text: &str, font: &Font) -> Result<(), io::Error> {
         write!(self, "[").await?;
         position_glyphs(text, font, self).await?;
         writeln!(self, "] TJ").await?;
@@ -178,7 +178,7 @@ where
 
 async fn position_glyphs<W: Write + Unpin>(
     text: &str,
-    font: &dyn Font,
+    font: &Font,
     out: &mut W,
 ) -> Result<(), io::Error> {
     let mut prev = None;
@@ -203,12 +203,12 @@ async fn position_glyphs<W: Write + Unpin>(
 #[cfg(test)]
 mod test {
     use super::position_glyphs;
-    use crate::fonts::HELVETICA;
+    use crate::fonts::afm::HELVETICA;
 
     #[async_std::test]
     async fn test_position_glyphs() {
         let mut buf = Vec::new();
-        position_glyphs("Hello World", &*HELVETICA, &mut buf)
+        position_glyphs("Hello World", &HELVETICA, &mut buf)
             .await
             .unwrap();
         assert_eq!(&String::from_utf8_lossy(&buf), "(Hello W) 30 (or) -15 (ld)");

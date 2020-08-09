@@ -69,7 +69,7 @@ fn main() -> io::Result<()> {
         include_str!("./fonts/Helvetica-Oblique.afm"),
         out_dir.join("helvetica_oblique.rs"),
     )?;
-    #[cfg(feature = "helvetica")]
+    #[cfg(any(feature = "helvetica", test))]
     build_font(
         &name_to_code,
         "HELVETICA",

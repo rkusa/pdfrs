@@ -2,6 +2,7 @@
 members = [
     "otf",
     "pdfrs",
+    "pdfrs-afm",
     "pdfrs-macros",
     "serde_pdf",
 ]

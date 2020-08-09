@@ -1,4 +1,4 @@
-use pdfrs::fonts::HELVETICA;
+use pdfrs::fonts::afm::HELVETICA;
 use pdfrs::Document;
 use pdfrs_macros::test as pdf_test;
 use std::fs::File;
@@ -10,5 +10,5 @@ async fn empty(doc: &mut Document<File>) {
 
 #[pdf_test("./fixtures/basic_text.pdf")]
 async fn basic_text(doc: &mut Document<File>) {
-    doc.text("Works", &*HELVETICA).await.unwrap();
+    doc.text("Hello World", &HELVETICA).await.unwrap();
 }

@@ -182,7 +182,7 @@ where
         Ok(())
     }
 
-    pub async fn text(&mut self, text: &str, font: &'a dyn Font) -> Result<(), Error> {
+    pub async fn text(&mut self, text: &str, font: &'a Font) -> Result<(), Error> {
         if !self.fonts.contains_key(font.base_name()) {
             if let Some(content_ref) = self.out.end_stream().await? {
                 self.page_state.contents.push(content_ref);
@@ -209,7 +209,7 @@ where
 
             match &mut self.out {
                 Writer::Stream(ref mut s) => {
-                    crate::text::write_text(s, text, font_entry.id).await?;
+                    crate::text::write_text(s, text, font_entry.id, font).await?;
                 }
                 Writer::Doc(_) | Writer::Null => {
                     // FIXME: return error instead, or ignore and do nothing

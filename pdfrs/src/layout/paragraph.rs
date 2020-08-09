@@ -90,12 +90,11 @@ impl<'a> Paragraph<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::fonts::afm::HELVETICA;
 
     #[test]
     fn test_paragraph_chunks_optional_break() {
-        let style = Style {
-            font: &*crate::fonts::HELVETICA,
-        };
+        let style = Style { font: &HELVETICA };
 
         let p = Paragraph {
             children: vec![TextNode {
@@ -123,9 +122,7 @@ mod test {
 
     #[test]
     fn test_paragraph_chunks_mandatory_break() {
-        let style = Style {
-            font: &*crate::fonts::HELVETICA,
-        };
+        let style = Style { font: &HELVETICA };
 
         let p = Paragraph {
             children: vec![TextNode {
@@ -153,9 +150,7 @@ mod test {
 
     #[test]
     fn test_paragraph_chunks_multiple_text_nodes() {
-        let style = Style {
-            font: &*crate::fonts::HELVETICA,
-        };
+        let style = Style { font: &HELVETICA };
 
         let p = Paragraph {
             children: vec![
@@ -189,9 +184,7 @@ mod test {
 
     #[test]
     fn test_paragraph_chunks_two_nodes_without_breaks() {
-        let style = Style {
-            font: &*crate::fonts::HELVETICA,
-        };
+        let style = Style { font: &HELVETICA };
 
         let p = Paragraph {
             children: vec![
@@ -225,9 +218,7 @@ mod test {
 
     #[test]
     fn test_paragraph_chunks_three_nodes_without_breaks() {
-        let style = Style {
-            font: &*crate::fonts::HELVETICA,
-        };
+        let style = Style { font: &HELVETICA };
 
         let p = Paragraph {
             children: vec![

@@ -1,6 +1,8 @@
+use std::borrow::Cow;
+use std::fmt;
+
 use crate::ser::NAME_RAW;
 use serde::{Serialize, Serializer};
-use std::borrow::Cow;
 
 pub enum PdfString {
     Hex(String),
@@ -35,6 +37,17 @@ impl<'a> Serialize for PdfStr<'a> {
             PdfStr::Literal(s) => to_literal(s),
         };
         serializer.serialize_newtype_struct(NAME_RAW, &s)
+    }
+}
+
+impl<'a> fmt::Display for PdfStr<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(
+            &(match self {
+                PdfStr::Hex(s) => to_hex(s),
+                PdfStr::Literal(s) => to_literal(s),
+            }),
+        )
     }
 }
 

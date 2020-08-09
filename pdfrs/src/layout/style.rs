@@ -3,7 +3,7 @@ use std::fmt;
 use crate::fonts::Font;
 
 pub struct Style<'a> {
-    pub font: &'a dyn Font,
+    pub font: &'a Font,
 }
 
 impl<'a> PartialEq for Style<'a> {

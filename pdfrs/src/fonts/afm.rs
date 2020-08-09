@@ -1,36 +1,81 @@
-// TODO: remove once AFM fonts are implemented
-#![allow(unused)]
+use std::io;
 
-use std::collections::HashMap;
-use std::io::{self, Write};
+use crate::fonts::font::{Font, FontEncoding, FontObject, FontType, FontVariant};
+use serde_pdf::PdfStr;
 
-use super::font::{FontEncoding, FontObject, FontType};
-use super::Font;
+pub struct AfmFont(&'static pdfrs_afm::AfmFont);
 
-#[derive(Default)]
-pub struct AfmFont {
-    pub(crate) cap_height: i32,
-    pub(crate) x_height: i32,
-    pub(crate) ascender: i32,
-    pub(crate) descender: i32,
-    pub(crate) italic_angle: f32,
-    pub(crate) underline_position: i32,
-    pub(crate) underline_thickness: i32,
-    pub(crate) font_bbox: (i32, i32, i32, i32),
-    pub(crate) font_name: &'static str,
-    pub(crate) full_name: &'static str,
-    pub(crate) family_name: &'static str,
-    pub(crate) character_set: &'static str,
-    pub(crate) glyph_widths: HashMap<u8, u32>,
-    pub(crate) kerning: HashMap<(u32, u32), i32>,
+#[cfg(feature = "courier_bold")]
+lazy_static! {
+    pub static ref COURIER_BOLD: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER_BOLD)));
+}
+#[cfg(feature = "courier_bold_oblique")]
+lazy_static! {
+    pub static ref COURIER_BOLD_OBLIQUE: Font =
+        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER_BOLD_OBLIQUE)));
+}
+#[cfg(feature = "courier_oblique")]
+lazy_static! {
+    pub static ref COURIER_OBLIQUE: Font =
+        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER_OBLIQUE)));
+}
+#[cfg(feature = "courier")]
+lazy_static! {
+    pub static ref COURIER: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER)));
+}
+#[cfg(feature = "helvetica_bold")]
+lazy_static! {
+    pub static ref HELVETICA_BOLD: Font =
+        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::HELVETICA_BOLD)));
+}
+#[cfg(feature = "helvetica_bold_oblique")]
+lazy_static! {
+    pub static ref HELVETICA_BOLD_OBLIQUE: Font = Font(FontVariant::Afm(AfmFont(
+        &*pdfrs_afm::HELVETICA_BOLD_OBLIQUE
+    )));
+}
+#[cfg(feature = "helvetica_oblique")]
+lazy_static! {
+    pub static ref HELVETICA_OBLIQUE: Font =
+        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::HELVETICA_OBLIQUE)));
+}
+#[cfg(feature = "helvetica")]
+lazy_static! {
+    pub static ref HELVETICA: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::HELVETICA)));
+}
+#[cfg(feature = "symbol")]
+lazy_static! {
+    pub static ref SYMBOL: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::SYMBOL)));
+}
+#[cfg(feature = "times_bold")]
+lazy_static! {
+    pub static ref TIMES_BOLD: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_BOLD)));
+}
+#[cfg(feature = "times_bold_italic")]
+lazy_static! {
+    pub static ref TIMES_BOLD_ITALIC: Font =
+        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_BOLD_ITALIC)));
+}
+#[cfg(feature = "times_italic")]
+lazy_static! {
+    pub static ref TIMES_ITALIC: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_ITALIC)));
+}
+#[cfg(feature = "times_roman")]
+lazy_static! {
+    pub static ref TIMES_ROMAN: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_ROMAN)));
+}
+#[cfg(feature = "zapf_dingbats")]
+lazy_static! {
+    pub static ref ZAPF_DINGBATS: Font =
+        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::ZAPF_DINGBATS)));
 }
 
-impl Font for AfmFont {
-    fn base_name(&self) -> &str {
-        self.font_name
+impl AfmFont {
+    pub fn base_name(&self) -> &str {
+        self.0.font_name
     }
 
-    fn object(&self) -> FontObject<'_> {
+    pub fn object(&self) -> FontObject<'_> {
         FontObject {
             subtype: FontType::Type1,
             base_font: self.base_name(),
@@ -38,29 +83,21 @@ impl Font for AfmFont {
         }
     }
 
-    fn kerning(&self, lhs: char, rhs: char) -> Option<i32> {
-        self.kerning.get(&(lhs as u32, rhs as u32)).cloned()
+    pub fn kerning(&self, lhs: char, rhs: char) -> Option<i32> {
+        self.0.kerning.get(&(lhs as u32, rhs as u32)).cloned()
     }
 
-    fn encode(&self, text: &str, buf: &mut Vec<u8>) -> Result<(), io::Error> {
+    pub fn encode(&self, text: &str, buf: &mut Vec<u8>) -> Result<(), io::Error> {
         buf.clear();
-        buf.push(b'(');
-        for c in text.chars() {
-            match c {
-                '\\' => buf.extend_from_slice(b"\\\\"),
-                '(' => buf.extend_from_slice(b"\\("),
-                ')' => buf.extend_from_slice(b"\\)"),
-                c => buf.push(c as u8),
-            }
-        }
-        buf.push(b')');
+        buf.extend_from_slice(PdfStr::Literal(text).to_string().as_bytes());
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::fonts::{Font, HELVETICA};
+    use crate::fonts::afm::HELVETICA;
+    use crate::fonts::Font;
 
     #[test]
     fn test_encode_basic() {

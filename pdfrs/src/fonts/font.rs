@@ -2,11 +2,46 @@ use std::io;
 
 use serde::Serialize;
 
-pub trait Font {
-    fn base_name(&self) -> &str;
-    fn object(&self) -> FontObject<'_>;
-    fn kerning(&self, lhs: char, rhs: char) -> Option<i32>;
-    fn encode(&self, text: &str, buf: &mut Vec<u8>) -> Result<(), io::Error>;
+pub struct Font(pub(super) FontVariant);
+
+pub(super) enum FontVariant {
+    #[cfg(feature = "afm")]
+    Afm(super::afm::AfmFont),
+    OpenType,
+}
+
+impl Font {
+    pub fn base_name(&self) -> &str {
+        match &self.0 {
+            #[cfg(feature = "afm")]
+            FontVariant::Afm(afm) => afm.base_name(),
+            FontVariant::OpenType => unimplemented!(),
+        }
+    }
+
+    pub fn object(&self) -> FontObject<'_> {
+        match &self.0 {
+            #[cfg(feature = "afm")]
+            FontVariant::Afm(afm) => afm.object(),
+            FontVariant::OpenType => unimplemented!(),
+        }
+    }
+
+    pub fn kerning(&self, lhs: char, rhs: char) -> Option<i32> {
+        match &self.0 {
+            #[cfg(feature = "afm")]
+            FontVariant::Afm(afm) => afm.kerning(lhs, rhs),
+            FontVariant::OpenType => unimplemented!(),
+        }
+    }
+
+    pub fn encode(&self, text: &str, buf: &mut Vec<u8>) -> Result<(), io::Error> {
+        match &self.0 {
+            #[cfg(feature = "afm")]
+            FontVariant::Afm(afm) => afm.encode(text, buf),
+            FontVariant::OpenType => unimplemented!(),
+        }
+    }
 }
 
 #[derive(Serialize)]
