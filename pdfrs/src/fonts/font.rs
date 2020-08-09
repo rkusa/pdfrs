@@ -5,7 +5,7 @@ use serde::Serialize;
 pub struct Font(pub(super) FontVariant);
 
 pub(super) enum FontVariant {
-    #[cfg(feature = "afm")]
+    #[cfg(any(feature = "afm", test))]
     Afm(super::afm::AfmFont),
     OpenType,
 }
@@ -13,7 +13,7 @@ pub(super) enum FontVariant {
 impl Font {
     pub fn base_name(&self) -> &str {
         match &self.0 {
-            #[cfg(feature = "afm")]
+            #[cfg(any(feature = "afm", test))]
             FontVariant::Afm(afm) => afm.base_name(),
             FontVariant::OpenType => unimplemented!(),
         }
@@ -21,7 +21,7 @@ impl Font {
 
     pub fn object(&self) -> FontObject<'_> {
         match &self.0 {
-            #[cfg(feature = "afm")]
+            #[cfg(any(feature = "afm", test))]
             FontVariant::Afm(afm) => afm.object(),
             FontVariant::OpenType => unimplemented!(),
         }
@@ -29,7 +29,7 @@ impl Font {
 
     pub fn kerning(&self, lhs: char, rhs: char) -> Option<i32> {
         match &self.0 {
-            #[cfg(feature = "afm")]
+            #[cfg(any(feature = "afm", test))]
             FontVariant::Afm(afm) => afm.kerning(lhs, rhs),
             FontVariant::OpenType => unimplemented!(),
         }
@@ -37,7 +37,7 @@ impl Font {
 
     pub fn encode(&self, text: &str, buf: &mut Vec<u8>) -> Result<(), io::Error> {
         match &self.0 {
-            #[cfg(feature = "afm")]
+            #[cfg(any(feature = "afm", test))]
             FontVariant::Afm(afm) => afm.encode(text, buf),
             FontVariant::OpenType => unimplemented!(),
         }

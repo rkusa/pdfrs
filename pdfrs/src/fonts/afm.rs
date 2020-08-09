@@ -1,74 +1,68 @@
 use std::io;
 
 use crate::fonts::font::{Font, FontEncoding, FontObject, FontType, FontVariant};
+use once_cell::sync::Lazy;
 use serde_pdf::PdfStr;
 
 pub struct AfmFont(&'static pdfrs_afm::AfmFont);
 
 #[cfg(feature = "courier_bold")]
-lazy_static! {
-    pub static ref COURIER_BOLD: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER_BOLD)));
-}
+pub static COURIER_BOLD: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER_BOLD))));
+
 #[cfg(feature = "courier_bold_oblique")]
-lazy_static! {
-    pub static ref COURIER_BOLD_OBLIQUE: Font =
-        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER_BOLD_OBLIQUE)));
-}
+pub static COURIER_BOLD_OBLIQUE: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER_BOLD_OBLIQUE))));
+
 #[cfg(feature = "courier_oblique")]
-lazy_static! {
-    pub static ref COURIER_OBLIQUE: Font =
-        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER_OBLIQUE)));
-}
+pub static COURIER_OBLIQUE: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER_OBLIQUE))));
+
 #[cfg(feature = "courier")]
-lazy_static! {
-    pub static ref COURIER: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER)));
-}
+pub static COURIER: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::COURIER))));
+
 #[cfg(feature = "helvetica_bold")]
-lazy_static! {
-    pub static ref HELVETICA_BOLD: Font =
-        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::HELVETICA_BOLD)));
-}
+pub static HELVETICA_BOLD: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::HELVETICA_BOLD))));
+
 #[cfg(feature = "helvetica_bold_oblique")]
-lazy_static! {
-    pub static ref HELVETICA_BOLD_OBLIQUE: Font = Font(FontVariant::Afm(AfmFont(
-        &*pdfrs_afm::HELVETICA_BOLD_OBLIQUE
-    )));
-}
+pub static HELVETICA_BOLD_OBLIQUE: Lazy<Font> = Lazy::new(|| {
+    Font(FontVariant::Afm(AfmFont(
+        &*pdfrs_afm::HELVETICA_BOLD_OBLIQUE,
+    )))
+});
+
 #[cfg(feature = "helvetica_oblique")]
-lazy_static! {
-    pub static ref HELVETICA_OBLIQUE: Font =
-        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::HELVETICA_OBLIQUE)));
-}
+pub static HELVETICA_OBLIQUE: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::HELVETICA_OBLIQUE))));
+
 #[cfg(feature = "helvetica")]
-lazy_static! {
-    pub static ref HELVETICA: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::HELVETICA)));
-}
+pub static HELVETICA: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::HELVETICA))));
+
 #[cfg(feature = "symbol")]
-lazy_static! {
-    pub static ref SYMBOL: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::SYMBOL)));
-}
+pub static SYMBOL: Lazy<Font> = Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::SYMBOL))));
+
 #[cfg(feature = "times_bold")]
-lazy_static! {
-    pub static ref TIMES_BOLD: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_BOLD)));
-}
+pub static TIMES_BOLD: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_BOLD))));
+
 #[cfg(feature = "times_bold_italic")]
-lazy_static! {
-    pub static ref TIMES_BOLD_ITALIC: Font =
-        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_BOLD_ITALIC)));
-}
+pub static TIMES_BOLD_ITALIC: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_BOLD_ITALIC))));
+
 #[cfg(feature = "times_italic")]
-lazy_static! {
-    pub static ref TIMES_ITALIC: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_ITALIC)));
-}
+pub static TIMES_ITALIC: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_ITALIC))));
+
 #[cfg(feature = "times_roman")]
-lazy_static! {
-    pub static ref TIMES_ROMAN: Font = Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_ROMAN)));
-}
+pub static TIMES_ROMAN: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::TIMES_ROMAN))));
+
 #[cfg(feature = "zapf_dingbats")]
-lazy_static! {
-    pub static ref ZAPF_DINGBATS: Font =
-        Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::ZAPF_DINGBATS)));
-}
+pub static ZAPF_DINGBATS: Lazy<Font> =
+    Lazy::new(|| Font(FontVariant::Afm(AfmFont(&*pdfrs_afm::ZAPF_DINGBATS))));
 
 impl AfmFont {
     pub fn base_name(&self) -> &str {

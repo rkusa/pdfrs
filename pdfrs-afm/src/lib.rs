@@ -8,9 +8,6 @@
 //! `helvetica_bold_oblique`, `helvetica_oblique`, `helvetica`, `symbol`, `times_bold`,
 //! `times_bold_italic`, `times_italic`, `times_roman`, `zapf_dingbats`.
 
-#[macro_use]
-extern crate lazy_static;
-
 use std::collections::HashMap;
 
 #[derive(Default)]

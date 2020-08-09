@@ -133,10 +133,10 @@ fn build_font(
 ) -> io::Result<()> {
     let mut out = BufWriter::new(File::create(&out_path)?);
 
-    writeln!(out, "lazy_static! {{")?;
     writeln!(
         out,
-        "pub static ref {}: AfmFont = #[allow(clippy::needless_update)] AfmFont {{",
+        "pub static {}: once_cell::sync::Lazy<AfmFont> = once_cell::sync::Lazy::new(|| {{\
+            #[allow(clippy::needless_update)] AfmFont {{",
         name
     )?;
 
@@ -229,8 +229,7 @@ fn build_font(
     }
 
     writeln!(out, "    ..Default::default()")?;
-    writeln!(out, "}};")?;
-    writeln!(out, "}}")?;
+    writeln!(out, "}}}});")?;
 
     Ok(())
 }
