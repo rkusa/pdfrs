@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::io::{self, Cursor};
 
-use super::{FontTable, Glyph, NamedTable};
+use super::{FontData, FontTable, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table establishes the memory requirements for this font.
@@ -66,13 +66,13 @@ impl MaxpTable {
     }
 }
 
-impl NamedTable for MaxpTable {
+impl<'a> FontTable<'a, (), ()> for MaxpTable {
     fn name() -> &'static str {
         "maxp"
     }
 }
 
-impl<'a> FontTable<'a> for MaxpTable {
+impl<'a> FontData<'a> for MaxpTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -125,7 +125,7 @@ impl<'a> FontTable<'a> for MaxpTable {
     }
 }
 
-impl<'a> FontTable<'a> for CffMaxpTable {
+impl<'a> FontData<'a> for CffMaxpTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -154,7 +154,7 @@ impl<'a> FontTable<'a> for CffMaxpTable {
     }
 }
 
-impl<'a> FontTable<'a> for TrueTypeMaxpTable {
+impl<'a> FontData<'a> for TrueTypeMaxpTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -212,8 +212,6 @@ impl<'a> FontTable<'a> for TrueTypeMaxpTable {
 
 #[cfg(test)]
 mod test {
-    use std::io::Cursor;
-
     use super::*;
     use crate::OffsetTable;
 
@@ -222,9 +220,7 @@ mod test {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let maxp_table: MaxpTable = table
-            .unpack_required_table("maxp", (), &mut cursor)
-            .unwrap();
+        let maxp_table: MaxpTable = table.unpack_required_table((), &mut cursor).unwrap();
 
         match &maxp_table {
             MaxpTable::CFF(_) => panic!("Expected TrueType maxp table"),

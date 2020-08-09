@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::io::{self, Cursor, Read};
 
-use super::{FontTable, Glyph, NamedTable};
+use super::{FontData, FontTable, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table consists of a set of metrics and other data that are required for a font.
@@ -121,13 +121,13 @@ pub struct Os2Table {
     us_upper_optical_point_size: u16,
 }
 
-impl NamedTable for Os2Table {
+impl<'a> FontTable<'a, (), ()> for Os2Table {
     fn name() -> &'static str {
         "OS/2"
     }
 }
 
-impl<'a> FontTable<'a> for Os2Table {
+impl<'a> FontData<'a> for Os2Table {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -334,8 +334,6 @@ impl<'a> FontTable<'a> for Os2Table {
 
 #[cfg(test)]
 mod test {
-    use std::io::Cursor;
-
     use super::*;
     use crate::OffsetTable;
 
@@ -344,9 +342,7 @@ mod test {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let os2_table: Os2Table = table
-            .unpack_required_table("OS/2", (), &mut cursor)
-            .unwrap();
+        let os2_table: Os2Table = table.unpack_required_table((), &mut cursor).unwrap();
 
         assert_eq!(
             os2_table,

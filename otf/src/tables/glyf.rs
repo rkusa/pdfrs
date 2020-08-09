@@ -4,7 +4,7 @@ use std::io::{self, Cursor, Read};
 use std::{iter, mem};
 
 use super::loca::LocaTable;
-use super::{FontTable, Glyph, NamedTable};
+use super::{FontData, FontTable, Glyph};
 use crate::utils::limit_read::LimitRead;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
@@ -80,13 +80,13 @@ impl GlyfTable {
     }
 }
 
-impl NamedTable for GlyfTable {
+impl<'a> FontTable<'a, &'a LocaTable, ()> for GlyfTable {
     fn name() -> &'static str {
         "glyf"
     }
 }
 
-impl<'a> FontTable<'a> for GlyfTable {
+impl<'a> FontData<'a> for GlyfTable {
     type UnpackDep = &'a LocaTable;
     type SubsetDep = ();
 
@@ -204,8 +204,6 @@ impl<'a> FontTable<'a> for GlyfTable {
 
 #[cfg(test)]
 mod test {
-    use std::io::Cursor;
-
     use super::*;
     use crate::tables::head::HeadTable;
     use crate::tables::maxp::MaxpTable;
@@ -231,17 +229,13 @@ mod test {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let head_table: HeadTable = table
-            .unpack_required_table("head", (), &mut cursor)
-            .unwrap();
-        let maxp_table: MaxpTable = table
-            .unpack_required_table("maxp", (), &mut cursor)
-            .unwrap();
+        let head_table: HeadTable = table.unpack_required_table((), &mut cursor).unwrap();
+        let maxp_table: MaxpTable = table.unpack_required_table((), &mut cursor).unwrap();
         let loca_table: LocaTable = table
-            .unpack_required_table("loca", (&head_table, &maxp_table), &mut cursor)
+            .unpack_required_table((&head_table, &maxp_table), &mut cursor)
             .unwrap();
         let glyf_table: GlyfTable = table
-            .unpack_required_table("glyf", &loca_table, &mut cursor)
+            .unpack_required_table(&loca_table, &mut cursor)
             .unwrap();
 
         assert_eq!(

@@ -7,7 +7,7 @@ use std::io::{self, Cursor};
 use std::mem;
 use std::rc::Rc;
 
-use super::{FontTable, Glyph, NamedTable};
+use super::{FontData, FontTable, Glyph};
 use crate::utils::limit_read::LimitRead;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use format12::Format12;
@@ -37,13 +37,13 @@ pub struct CmapTable {
     pub(crate) encoding_records: Vec<EncodingRecord>,
 }
 
-impl NamedTable for CmapTable {
+impl<'a> FontTable<'a, (), ()> for CmapTable {
     fn name() -> &'static str {
         "cmap"
     }
 }
 
-impl<'a> FontTable<'a> for CmapTable {
+impl<'a> FontData<'a> for CmapTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -204,7 +204,7 @@ pub struct EncodingRecord {
     pub(crate) subtable: Rc<Subtable>,
 }
 
-impl<'a> FontTable<'a> for RawEncodingRecord {
+impl<'a> FontData<'a> for RawEncodingRecord {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -242,7 +242,7 @@ impl Subtable {
     }
 }
 
-impl<'a> FontTable<'a> for Subtable {
+impl<'a> FontData<'a> for Subtable {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -332,8 +332,6 @@ impl<'a> FontTable<'a> for Subtable {
 
 #[cfg(test)]
 mod test {
-    use std::io::Cursor;
-
     use super::*;
     use crate::OffsetTable;
 
@@ -342,9 +340,7 @@ mod test {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let cmap_table: CmapTable = table
-            .unpack_required_table("cmap", (), &mut cursor)
-            .unwrap();
+        let cmap_table: CmapTable = table.unpack_required_table((), &mut cursor).unwrap();
 
         assert_eq!(cmap_table.version, 0);
         assert_eq!(cmap_table.encoding_records.len(), 4);
@@ -375,9 +371,7 @@ mod test {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let cmap_table: CmapTable = table
-            .unpack_required_table("cmap", (), &mut cursor)
-            .unwrap();
+        let cmap_table: CmapTable = table.unpack_required_table((), &mut cursor).unwrap();
 
         for record in &cmap_table.encoding_records {
             // re-pack and compare

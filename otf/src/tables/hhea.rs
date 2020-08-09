@@ -4,7 +4,7 @@ use std::io::{self, Cursor};
 
 use super::head::HeadTable;
 use super::hmtx::HmtxTable;
-use super::{FontTable, Glyph, NamedTable};
+use super::{FontData, FontTable, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table contains information for horizontal layout.
@@ -45,13 +45,13 @@ pub struct HheaTable {
     pub number_of_h_metrics: u16,
 }
 
-impl NamedTable for HheaTable {
+impl<'a> FontTable<'a, (), (&'a HeadTable, &'a HmtxTable)> for HheaTable {
     fn name() -> &'static str {
         "hhea"
     }
 }
 
-impl<'a> FontTable<'a> for HheaTable {
+impl<'a> FontData<'a> for HheaTable {
     type UnpackDep = ();
     type SubsetDep = (&'a HeadTable, &'a HmtxTable);
 
@@ -155,8 +155,6 @@ impl<'a> FontTable<'a> for HheaTable {
 
 #[cfg(test)]
 mod test {
-    use std::io::Cursor;
-
     use super::*;
     use crate::tables::hmtx::LongHorMetric;
     use crate::OffsetTable;
@@ -166,9 +164,7 @@ mod test {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let hhea_table: HheaTable = table
-            .unpack_required_table("hhea", (), &mut cursor)
-            .unwrap();
+        let hhea_table: HheaTable = table.unpack_required_table((), &mut cursor).unwrap();
 
         assert_eq!(hhea_table.major_version, 1);
         assert_eq!(hhea_table.minor_version, 0);

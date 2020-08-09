@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use std::io::{self, Cursor, Read};
 use std::{iter, mem};
 
-use crate::tables::{FontTable, Glyph};
+use crate::tables::{FontData, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -78,7 +78,7 @@ impl Format4 {
     }
 }
 
-impl<'a> FontTable<'a> for Format4 {
+impl<'a> FontData<'a> for Format4 {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -253,9 +253,7 @@ mod test {
         let data = include_bytes!("../../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let cmap_table: CmapTable = table
-            .unpack_required_table("cmap", (), &mut cursor)
-            .unwrap();
+        let cmap_table: CmapTable = table.unpack_required_table((), &mut cursor).unwrap();
 
         let record = cmap_table
             .encoding_records

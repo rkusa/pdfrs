@@ -4,7 +4,7 @@ use std::iter;
 
 use super::hhea::HheaTable;
 use super::maxp::MaxpTable;
-use super::{FontTable, Glyph, NamedTable};
+use super::{FontData, FontTable, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table contains glyph metrics used for horizontal text layout.
@@ -28,13 +28,13 @@ pub struct LongHorMetric {
     pub(crate) lsb: i16,
 }
 
-impl NamedTable for HmtxTable {
+impl<'a> FontTable<'a, (&'a HheaTable, &'a MaxpTable), ()> for HmtxTable {
     fn name() -> &'static str {
         "hmtx"
     }
 }
 
-impl<'a> FontTable<'a> for HmtxTable {
+impl<'a> FontData<'a> for HmtxTable {
     type UnpackDep = (&'a HheaTable, &'a MaxpTable);
     type SubsetDep = ();
 
@@ -105,7 +105,7 @@ impl<'a> FontTable<'a> for HmtxTable {
     }
 }
 
-impl<'a> FontTable<'a> for LongHorMetric {
+impl<'a> FontData<'a> for LongHorMetric {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -128,8 +128,6 @@ impl<'a> FontTable<'a> for LongHorMetric {
 
 #[cfg(test)]
 mod test {
-    use std::io::Cursor;
-
     use super::*;
     use crate::OffsetTable;
 
@@ -138,14 +136,10 @@ mod test {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let hhea_table: HheaTable = table
-            .unpack_required_table("hhea", (), &mut cursor)
-            .unwrap();
-        let maxp_table: MaxpTable = table
-            .unpack_required_table("maxp", (), &mut cursor)
-            .unwrap();
+        let hhea_table: HheaTable = table.unpack_required_table((), &mut cursor).unwrap();
+        let maxp_table: MaxpTable = table.unpack_required_table((), &mut cursor).unwrap();
         let hmtx_table: HmtxTable = table
-            .unpack_required_table("hmtx", (&hhea_table, &maxp_table), &mut cursor)
+            .unpack_required_table((&hhea_table, &maxp_table), &mut cursor)
             .unwrap();
 
         assert_eq!(

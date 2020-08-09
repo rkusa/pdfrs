@@ -1,6 +1,6 @@
 use std::io::{self, Cursor, Read};
 
-use super::{FontTable, NamedTable};
+use super::{FontData, FontTable};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table contains additional information needed to use OTF fonts on PostScript printers.
@@ -37,13 +37,13 @@ pub struct PostTable {
     addition: Vec<u8>,
 }
 
-impl NamedTable for PostTable {
+impl<'a> FontTable<'a, (), ()> for PostTable {
     fn name() -> &'static str {
         "post"
     }
 }
 
-impl<'a> FontTable<'a> for PostTable {
+impl<'a> FontData<'a> for PostTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -99,8 +99,6 @@ impl<'a> FontTable<'a> for PostTable {
 
 #[cfg(test)]
 mod test {
-    use std::io::Cursor;
-
     use super::*;
     use crate::OffsetTable;
 
@@ -109,9 +107,7 @@ mod test {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let post_table: PostTable = table
-            .unpack_required_table("post", (), &mut cursor)
-            .unwrap();
+        let post_table: PostTable = table.unpack_required_table((), &mut cursor).unwrap();
 
         assert_eq!(post_table.major_version, 3);
         assert_eq!(post_table.minor_version, 0);

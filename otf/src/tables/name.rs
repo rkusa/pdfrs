@@ -1,6 +1,6 @@
 use std::io::{self, Cursor, Read};
 
-use super::{FontTable, NamedTable};
+use super::{FontData, FontTable};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// This table includes human-readable names for features and settings, copyright notices,
@@ -14,13 +14,13 @@ pub enum NameTable {
     Format1(Format1NameTable),
 }
 
-impl NamedTable for NameTable {
+impl<'a> FontTable<'a, (), ()> for NameTable {
     fn name() -> &'static str {
         "name"
     }
 }
 
-impl<'a> FontTable<'a> for NameTable {
+impl<'a> FontData<'a> for NameTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -69,7 +69,7 @@ pub struct Format0NameTable {
     string_data: Vec<u8>,
 }
 
-impl<'a> FontTable<'a> for Format0NameTable {
+impl<'a> FontData<'a> for Format0NameTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -121,7 +121,7 @@ pub struct Format1NameTable {
     string_data: Vec<u8>,
 }
 
-impl<'a> FontTable<'a> for Format1NameTable {
+impl<'a> FontData<'a> for Format1NameTable {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -185,7 +185,7 @@ pub struct NameRecord {
     offset: u16,
 }
 
-impl<'a> FontTable<'a> for NameRecord {
+impl<'a> FontData<'a> for NameRecord {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -222,7 +222,7 @@ pub struct LangTagRecord {
     offset: u16,
 }
 
-impl<'a> FontTable<'a> for LangTagRecord {
+impl<'a> FontData<'a> for LangTagRecord {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -245,8 +245,6 @@ impl<'a> FontTable<'a> for LangTagRecord {
 
 #[cfg(test)]
 mod test {
-    use std::io::Cursor;
-
     use super::*;
     use crate::OffsetTable;
 
@@ -255,9 +253,7 @@ mod test {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let name_table: NameTable = table
-            .unpack_required_table("name", (), &mut cursor)
-            .unwrap();
+        let name_table: NameTable = table.unpack_required_table((), &mut cursor).unwrap();
 
         match &name_table {
             NameTable::Format0(format0) => {

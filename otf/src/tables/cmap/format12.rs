@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::io::{self, Cursor};
 
-use crate::tables::{FontTable, Glyph};
+use crate::tables::{FontData, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -39,7 +39,7 @@ impl Format12 {
     }
 }
 
-impl<'a> FontTable<'a> for Format12 {
+impl<'a> FontData<'a> for Format12 {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -135,7 +135,7 @@ pub struct SequentialMapGroup {
     start_glyph_id: u32,
 }
 
-impl<'a> FontTable<'a> for SequentialMapGroup {
+impl<'a> FontData<'a> for SequentialMapGroup {
     type UnpackDep = ();
     type SubsetDep = ();
 
@@ -170,9 +170,7 @@ mod test {
         let data = include_bytes!("../../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let cmap_table: CmapTable = table
-            .unpack_required_table("cmap", (), &mut cursor)
-            .unwrap();
+        let cmap_table: CmapTable = table.unpack_required_table((), &mut cursor).unwrap();
 
         let record = cmap_table
             .encoding_records

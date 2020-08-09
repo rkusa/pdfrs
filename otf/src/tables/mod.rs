@@ -6,17 +6,18 @@ pub mod hmtx;
 pub mod loca;
 pub mod maxp;
 pub mod name;
+pub mod offset;
 pub mod os2;
 pub mod post;
 
 use std::borrow::Cow;
 use std::io::{self, Cursor};
 
-pub trait NamedTable {
+pub trait FontTable<'a, U, S>: FontData<'a, UnpackDep = U, SubsetDep = S> {
     fn name() -> &'static str;
 }
 
-pub trait FontTable<'a>: Sized {
+pub trait FontData<'a>: Sized {
     type UnpackDep;
     type SubsetDep;
 

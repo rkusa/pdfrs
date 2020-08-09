@@ -3,7 +3,7 @@ use std::io::{self, Cursor};
 
 use super::glyf::GlyfTable;
 use super::loca::{Format as LocaFormat, LocaTable};
-use super::{FontTable, Glyph, NamedTable};
+use super::{FontData, FontTable, Glyph};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 /// See https://docs.microsoft.com/en-us/typography/opentype/spec/head
@@ -75,13 +75,13 @@ pub struct HeadTable {
     pub(crate) glyph_data_format: i16,
 }
 
-impl NamedTable for HeadTable {
+impl<'a> FontTable<'a, (), (&'a GlyfTable, &'a LocaTable)> for HeadTable {
     fn name() -> &'static str {
         "head"
     }
 }
 
-impl<'a> FontTable<'a> for HeadTable {
+impl<'a> FontData<'a> for HeadTable {
     type UnpackDep = ();
     type SubsetDep = (&'a GlyfTable, &'a LocaTable);
 
@@ -180,8 +180,6 @@ impl<'a> FontTable<'a> for HeadTable {
 
 #[cfg(test)]
 mod test {
-    use std::io::Cursor;
-
     use super::*;
     use crate::tables::glyf::GlyphData;
     use crate::OffsetTable;
@@ -191,9 +189,7 @@ mod test {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
-        let head_table: HeadTable = table
-            .unpack_required_table("head", (), &mut cursor)
-            .unwrap();
+        let head_table: HeadTable = table.unpack_required_table((), &mut cursor).unwrap();
 
         assert_eq!(head_table.major_version, 1);
         assert_eq!(head_table.minor_version, 0);
