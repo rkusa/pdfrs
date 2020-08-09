@@ -1,47 +1,19 @@
+use std::hash::Hash;
 use std::io;
 
 use serde::Serialize;
 
-pub struct Font(pub(super) FontVariant);
+pub trait FontCollection {
+    type FontRef: Hash + Default + PartialEq + Eq + Clone + Copy;
 
-pub(super) enum FontVariant {
-    #[cfg(any(feature = "afm", test))]
-    Afm(super::afm::AfmFont),
-    OpenType,
+    fn font(&self, font: Self::FontRef) -> &dyn Font;
 }
 
-impl Font {
-    pub fn base_name(&self) -> &str {
-        match &self.0 {
-            #[cfg(any(feature = "afm", test))]
-            FontVariant::Afm(afm) => afm.base_name(),
-            FontVariant::OpenType => unimplemented!(),
-        }
-    }
-
-    pub fn object(&self) -> FontObject<'_> {
-        match &self.0 {
-            #[cfg(any(feature = "afm", test))]
-            FontVariant::Afm(afm) => afm.object(),
-            FontVariant::OpenType => unimplemented!(),
-        }
-    }
-
-    pub fn kerning(&self, lhs: char, rhs: char) -> Option<i32> {
-        match &self.0 {
-            #[cfg(any(feature = "afm", test))]
-            FontVariant::Afm(afm) => afm.kerning(lhs, rhs),
-            FontVariant::OpenType => unimplemented!(),
-        }
-    }
-
-    pub fn encode(&self, text: &str, buf: &mut Vec<u8>) -> Result<(), io::Error> {
-        match &self.0 {
-            #[cfg(any(feature = "afm", test))]
-            FontVariant::Afm(afm) => afm.encode(text, buf),
-            FontVariant::OpenType => unimplemented!(),
-        }
-    }
+pub trait Font {
+    fn base_name(&self) -> &str;
+    fn object(&self) -> FontObject;
+    fn kerning(&self, lhs: char, rhs: char) -> Option<i32>;
+    fn encode_into(&self, text: &str, buf: &mut Vec<u8>) -> Result<(SubsetRef, usize), io::Error>;
 }
 
 #[derive(Serialize)]
@@ -57,8 +29,20 @@ pub enum FontEncoding {
 #[derive(Serialize)]
 #[serde(rename_all = "PascalCase")]
 #[serde(rename = "Font")]
-pub struct FontObject<'a> {
+pub struct FontObject {
     pub subtype: FontType,
-    pub base_font: &'a str,
+    pub base_font: String,
     pub encoding: FontEncoding,
+}
+
+#[derive(Hash, Default, PartialEq, Eq, Clone, Copy)]
+pub struct SingleFont(pub(super) usize);
+
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+pub struct SubsetRef(pub(super) usize);
+
+impl SubsetRef {
+    pub fn font_id(&self) -> usize {
+        self.0
+    }
 }

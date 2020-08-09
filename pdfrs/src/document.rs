@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::io;
 use std::mem;
 
-use crate::fonts::{Font, FontObject};
+use crate::fonts::{FontCollection, SubsetRef};
 use crate::idseq::IdSeq;
-use crate::page::{Page, Pages, Resources};
+use crate::page::{FontRef, Page, Pages, Resources};
 use crate::stream::{to_async_writer, StreamRef};
 use crate::writer::{DocWriter, Writer};
 use async_std::io::prelude::{Write, WriteExt};
@@ -19,31 +19,27 @@ const RESERVED_PAGES_ID: usize = 1;
 // const PAGES_REFERENCE: Reference<Pages<'_>> = Reference::new(PAGES_ID);
 
 /// A type used to generate a PDF document.
-pub struct Document<'a, W: Write> {
+pub struct Document<'a, F: FontCollection, W: Write> {
     out: Writer<W>,
     id_seq: IdSeq,
     pages: Vec<Reference<Page<'a>>>,
     id: String,
     creation_date: DateTime<Utc>,
     producer: String,
-    fonts: HashMap<&'a str, FontEntry<'a>>,
-    page_state: PageState<'a>,
-}
-
-#[derive(Eq, PartialEq, Hash)]
-struct FontEntry<'a> {
-    id: usize,
-    reference: Reference<FontObject<'a>>,
+    page_state: PageState,
+    font_collection: F,
+    subsets: HashMap<F::FontRef, HashMap<SubsetRef, ObjectId>>,
 }
 
 #[derive(Default, Eq, PartialEq)]
-struct PageState<'a> {
-    fonts: HashMap<usize, Reference<FontObject<'a>>>,
+struct PageState {
+    fonts: HashMap<SubsetRef, Reference<FontRef>>,
     contents: Vec<Reference<StreamRef>>,
 }
 
-impl<'a, W> Document<'a, W>
+impl<'a, F, W> Document<'a, F, W>
 where
+    F: FontCollection,
     W: Write + Unpin,
 {
     /// Constructs a new `Document<'a, W>`.
@@ -52,7 +48,7 @@ where
     /// with further content, the resulting PDF output is generated right-away (most of the times).
     /// The resulting output is not buffered. It is directly written into the given `writer`. For
     /// most use-cases, it is thus recommended to provide a [`BufWriter`](std::io::BufWriter).
-    pub async fn new(writer: W) -> Result<Document<'a, W>, io::Error> {
+    pub async fn new(fonts: F, writer: W) -> Result<Document<'a, F, W>, io::Error> {
         let mut writer = DocWriter::new(writer);
 
         // The PDF format mandates that we add at least 4 commented binary characters
@@ -63,7 +59,7 @@ where
             .write_all(&[255, 255, 255, 255, b'\n', b'\n'])
             .await?;
 
-        Ok(Document {
+        let mut doc = Document {
             out: Writer::Doc(writer),
             id_seq: IdSeq::new(RESERVED_PAGES_ID + 1),
             pages: Vec::new(),
@@ -73,9 +69,12 @@ where
                 "pdfrs v{} (github.com/rkusa/pdfrs)",
                 env!("CARGO_PKG_VERSION")
             ),
-            fonts: HashMap::new(),
             page_state: PageState::default(),
-        })
+            font_collection: fonts,
+            subsets: HashMap::new(),
+        };
+        doc.start_page().await?;
+        Ok(doc)
     }
 
     /// Overrides the automatically generated PDF id by the provided `id`.
@@ -134,13 +133,8 @@ where
                 // FIXME: maybe close stream instead of panicing
                 unreachable!();
             }
-            Writer::Doc(ref mut w) => {
-                w.add_xref(object.id());
-                to_async_writer(w, &object).await
-            }
-            Writer::Null => {
-                unreachable!();
-            }
+            Writer::Doc(ref mut w) => w.write_object(object).await,
+            Writer::Null => unreachable!(),
         }
     }
 
@@ -169,7 +163,7 @@ where
                     font: page_state
                         .fonts
                         .into_iter()
-                        .map(|(id, font_ref)| (format!("F{}", id), font_ref))
+                        .map(|(s, r)| (format!("F{}", s.font_id()), r))
                         .collect(),
                 },
                 contents: page_state.contents,
@@ -182,41 +176,36 @@ where
         Ok(())
     }
 
-    pub async fn text(&mut self, text: &str, font: &'a Font) -> Result<(), Error> {
-        if !self.fonts.contains_key(font.base_name()) {
-            if let Some(content_ref) = self.out.end_stream().await? {
-                self.page_state.contents.push(content_ref);
-            }
-
-            let font_object = font.object();
-            let font_ref = self.write_object(font_object).await?;
-            self.fonts.insert(
-                font.base_name(),
-                FontEntry {
-                    id: self.fonts.len(),
-                    reference: font_ref,
-                },
-            );
-
-            self.new_stream().await?;
+    pub async fn text(&mut self, text: &str, font_ref: Option<F::FontRef>) -> Result<(), Error> {
+        if text.is_empty() {
+            return Ok(());
         }
 
-        if let Some(font_entry) = self.fonts.get(font.base_name()) {
-            self.page_state
-                .fonts
-                .entry(font_entry.id)
-                .or_insert_with(|| font_entry.reference.clone());
+        let font_ref = font_ref.unwrap_or_default();
+        let font = self.font_collection.font(font_ref);
+        let subsets = self
+            .subsets
+            .entry(font_ref)
+            .or_insert_with(Default::default);
 
-            match &mut self.out {
-                Writer::Stream(ref mut s) => {
-                    crate::text::write_text(s, text, font_entry.id, font).await?;
-                }
-                Writer::Doc(_) | Writer::Null => {
-                    // FIXME: return error instead, or ignore and do nothing
-                    unreachable!();
-                }
+        let subset_refs = match &mut self.out {
+            Writer::Stream(ref mut s) => crate::text::write_text(text, font, s).await?,
+            Writer::Doc(_) | Writer::Null => {
+                // FIXME: return error instead, or ignore and do nothing
+                unreachable!();
+            }
+        };
+
+        for subset_ref in &subset_refs {
+            if !subsets.contains_key(&subset_ref) {
+                subsets.insert(*subset_ref, ObjectId::new(self.id_seq.next(), 0));
             }
         }
+        self.page_state.fonts.extend(
+            subset_refs
+                .into_iter()
+                .filter_map(|s| subsets.get(&s).map(|o| (s, Reference::new(o.clone())))),
+        );
 
         Ok(())
     }
@@ -238,6 +227,7 @@ where
 
         self.end_page().await?;
 
+        // Write pages
         let kids = mem::replace(&mut self.pages, Vec::new());
         let pages = Object::new(
             RESERVED_PAGES_ID,
@@ -252,11 +242,30 @@ where
         self.write(pages).await?;
         let catalog_ref = self.write_object(Catalog { pages: pages_ref }).await?;
 
-        let mut out = match self.out {
+        let Document {
+            out,
+            mut id_seq,
+            id,
+            producer,
+            font_collection,
+            subsets,
+            ..
+        } = self;
+
+        let mut out = match out {
             Writer::Doc(w) => w,
             Writer::Stream(w) => w.end().await?,
             Writer::Null => unreachable!(),
         };
+
+        // Write fonts
+        for (font_ref, subsets) in subsets {
+            let font = font_collection.font(font_ref);
+            for (_, id) in subsets {
+                let font_obj = Object::new(id.id(), id.rev(), font.object());
+                out.write_object(font_obj).await?;
+            }
+        }
 
         // xref
         let startxref = out.len();
@@ -287,11 +296,11 @@ where
         to_async_writer(
             &mut out,
             &Trailer {
-                size: self.id_seq.count() - 1,
+                size: id_seq.count() - 1,
                 root: catalog_ref,
-                id: (PdfStr::Hex(&self.id), PdfStr::Hex(&self.id)),
+                id: (PdfStr::Hex(&id), PdfStr::Hex(&id)),
                 info: Info {
-                    producer: PdfStr::Literal(&self.producer),
+                    producer: PdfStr::Literal(&producer),
                     creation_date: &self.creation_date,
                 },
             },

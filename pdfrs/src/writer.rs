@@ -2,13 +2,14 @@ use std::collections::HashMap;
 use std::{io, mem};
 
 use crate::idseq::IdSeq;
-use crate::stream::{Stream, StreamRef};
+use crate::stream::{to_async_writer, Stream, StreamRef};
 use async_std::io::prelude::{Write, WriteExt};
 use async_std::io::BufWriter;
 use async_std::task::Context;
 use async_std::task::Poll;
 use pin_project::pin_project;
-use serde_pdf::Reference;
+use serde::Serialize;
+use serde_pdf::{Object, Reference};
 use std::pin::Pin;
 
 /// A type that is always [`Write`](async_std::io::Write), but either contains a `DocWriter<W>` or a
@@ -79,6 +80,15 @@ impl<W: Write + Unpin> DocWriter<W> {
     /// `id`.
     pub fn add_xref(&mut self, id: usize) {
         self.xref.insert(id, self.len);
+    }
+
+    /// Writes the provided `object` to the PDF output.
+    pub async fn write_object<D: Serialize>(
+        &mut self,
+        object: Object<D>,
+    ) -> Result<(), serde_pdf::Error> {
+        self.add_xref(object.id());
+        to_async_writer(self, &object).await
     }
 
     /// Writes the XREF table into into the wrapped writer of the `DocWriter<W>`.

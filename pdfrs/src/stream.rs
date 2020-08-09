@@ -1,6 +1,8 @@
+use std::collections::HashSet;
 use std::io;
+use std::pin::Pin;
 
-use crate::fonts::Font;
+use crate::fonts::{Font, SubsetRef};
 use crate::idseq::IdSeq;
 use crate::writer::DocWriter;
 use async_std::io::{prelude::WriteExt, Write};
@@ -9,7 +11,6 @@ use async_std::task::Poll;
 use pin_project::pin_project;
 use serde::Serialize;
 use serde_pdf::{Object, ObjectId, Reference};
-use std::pin::Pin;
 
 /// A type used to handle writing a PDF stream to a PDF document. It handles creating a
 /// corresponding PDF object, keeping track of the stream's length as well as writing the stream
@@ -21,6 +22,7 @@ pub struct Stream<W: Write> {
     len: usize,
     #[pin]
     wr: DocWriter<W>,
+    prev_subset: Option<SubsetRef>,
 }
 
 /// The properties of a PDF stream's PDF object.
@@ -42,6 +44,7 @@ impl<W: Write + Unpin> Stream<W> {
             len_obj_id: ObjectId::new(id_seq.next(), 0),
             len: 0,
             wr,
+            prev_subset: None,
         };
         stream.write_header().await?;
         Ok(stream)
@@ -73,9 +76,6 @@ impl<W: Write + Unpin> Stream<W> {
     /// Ends the PDF stream, which involves writing the stream's and corresponding object's end
     /// markers and the stream's length object.
     pub async fn end(mut self) -> Result<DocWriter<W>, io::Error> {
-        if self.len > 0 {
-            writeln!(self.wr).await?;
-        }
         writeln!(self.wr, "endstream\nendobj\n").await?;
 
         self.wr.add_xref(self.len_obj_id.id());
@@ -132,11 +132,68 @@ impl<W: Write + Unpin> Stream<W> {
         writeln!(self, "{:.3} {:.3} {:.3} sc", c1, c2, c3).await
     }
 
-    pub async fn show_text_string(&mut self, text: &str, font: &Font) -> Result<(), io::Error> {
-        write!(self, "[").await?;
-        position_glyphs(text, font, self).await?;
+    pub async fn show_text_string(
+        &mut self,
+        text: &str,
+        font: &dyn Font,
+        size: f64,
+    ) -> Result<HashSet<SubsetRef>, io::Error> {
+        let mut subset_refs = HashSet::with_capacity(1);
+        let mut prev = None;
+        let mut offset = 0;
+        for (i, c) in text.char_indices() {
+            if let Some(kerning) = prev.and_then(|p| font.kerning(p, c)) {
+                let srfs = self.write_text(&text[offset..i], font, size).await?;
+                subset_refs.extend(srfs);
+                write!(self, " {} ", -kerning).await?;
+                offset = i;
+            }
+            prev = Some(c);
+        }
+        if offset < text.len() {
+            let srfs = self.write_text(&text[offset..], font, size).await?;
+            subset_refs.extend(srfs);
+        }
+
         writeln!(self, "] TJ").await?;
-        Ok(())
+        self.prev_subset = None;
+        Ok(subset_refs)
+    }
+
+    async fn write_text(
+        &mut self,
+        text: &str,
+        font: &dyn Font,
+        size: f64,
+    ) -> Result<HashSet<SubsetRef>, io::Error> {
+        let mut subset_refs = HashSet::with_capacity(1);
+
+        // TODO: re-use buffer for other method calls?
+        let mut buf = Vec::with_capacity(text.len());
+        let mut offset = 0;
+        loop {
+            let substr = &text[offset..];
+            let (subset_ref, n) = font.encode_into(substr, &mut buf)?;
+            if self.prev_subset != Some(subset_ref) {
+                if self.prev_subset.is_some() {
+                    writeln!(self, "] TJ").await?
+                }
+                self.set_text_font(subset_ref.font_id(), size).await?;
+                write!(self, "[").await?;
+            }
+
+            self.write_all(&buf).await?;
+            subset_refs.insert(subset_ref);
+            self.prev_subset = Some(subset_ref);
+            if n < substr.len() {
+                offset += n;
+                buf.clear();
+            } else {
+                break;
+            }
+        }
+
+        Ok(subset_refs)
     }
 }
 
@@ -176,41 +233,28 @@ where
     Ok(())
 }
 
-async fn position_glyphs<W: Write + Unpin>(
-    text: &str,
-    font: &Font,
-    out: &mut W,
-) -> Result<(), io::Error> {
-    let mut prev = None;
-    let mut offset = 0;
-    let mut buf = Vec::with_capacity(text.len().min(16));
-    for (i, c) in text.char_indices() {
-        if let Some(kerning) = prev.and_then(|p| font.kerning(p, c)) {
-            font.encode(&text[offset..i], &mut buf)?;
-            out.write_all(&buf).await?;
-            write!(out, " {} ", -kerning).await?;
-            offset = i;
-        }
-        prev = Some(c);
-    }
-    if offset < text.len() {
-        font.encode(&text[offset..], &mut buf)?;
-        out.write_all(&buf).await?;
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod test {
-    use super::position_glyphs;
-    use crate::fonts::afm::HELVETICA;
+    use super::*;
+    use crate::fonts::HELVETICA;
+    use crate::idseq::IdSeq;
 
     #[async_std::test]
     async fn test_position_glyphs() {
         let mut buf = Vec::new();
-        position_glyphs("Hello World", &HELVETICA, &mut buf)
+        let mut id_seq = IdSeq::new(0);
+        let mut stream = Stream::new(&mut id_seq, DocWriter::new(&mut buf))
             .await
             .unwrap();
-        assert_eq!(&String::from_utf8_lossy(&buf), "(Hello W) 30 (or) -15 (ld)");
+
+        let len_before = stream.wr.len();
+        stream
+            .show_text_string("Hello World", &&*HELVETICA, 12.0)
+            .await
+            .unwrap();
+        assert_eq!(
+            &String::from_utf8_lossy(&buf[len_before..]),
+            "/F0 12.000 Tf\n[(Hello W) 30 (or) -15 (ld)] TJ\n"
+        );
     }
 }

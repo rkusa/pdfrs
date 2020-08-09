@@ -4,4 +4,4 @@ test:
 
 .PHONY: update_snapshots
 update_snapshots:
-	rename -fg 's/\.result\.pdf$$/\.pdf/' 'pdfrs/test/results/*.pdf'
+	rename -fg 's/\.result\.pdf$$/\.pdf/' 'pdfrs/tests/fixtures/*.pdf'

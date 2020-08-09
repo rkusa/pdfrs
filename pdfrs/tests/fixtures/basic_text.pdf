@@ -3,30 +3,20 @@
 
 2 0 obj
 <<
-	/Type /Font
-	/Subtype /Type1
-	/BaseFont /Helvetica
-	/Encoding /WinAnsiEncoding
->>
-endobj
-
-3 0 obj
-<<
-	/Length 4 0 R
+	/Length 3 0 R
 >>
 stream
 BT
 1.000 0.000 0.000 1.000 10.000 821.721 Tm
 10.175 TL
-/F0 11.000 Tf
 0.000 0.000 0.000 sc
+/F0 11.000 Tf
 [(Hello W) 30 (or) -15 (ld)] TJ
 ET
-
 endstream
 endobj
 
-4 0 obj
+3 0 obj
 125
 endobj
 
@@ -37,9 +27,9 @@ endobj
 	/Resources <<
 		/Type /Resources
 		/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]
-		/Font << /F0 2 0 R >>
+		/Font << /F0 4 0 R >>
 	>>
-	/Contents [3 0 R]
+	/Contents [2 0 R]
 >>
 endobj
 
@@ -59,15 +49,24 @@ endobj
 >>
 endobj
 
+4 0 obj
+<<
+	/Type /Font
+	/Subtype /Type1
+	/BaseFont /Helvetica
+	/Encoding /WinAnsiEncoding
+>>
+endobj
+
 xref
 0 7
 0000000000 65535 f
-0000000497 00000 n
+0000000394 00000 n
 0000000016 00000 n
-0000000118 00000 n
-0000000298 00000 n
-0000000318 00000 n
-0000000591 00000 n
+0000000195 00000 n
+0000000540 00000 n
+0000000215 00000 n
+0000000488 00000 n
 trailer
 <<
 	/Size 5
@@ -79,5 +78,5 @@ trailer
 	>>
 >>
 startxref
-643
+642
 %%EOF
