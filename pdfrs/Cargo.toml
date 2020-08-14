@@ -5,9 +5,11 @@ authors = ["Markus Ast <m@rkusa.st>"]
 edition = "2018"
 
 [dependencies]
+async-compression = { version = "0.3", features = ["futures-io", "zlib"] }
 async-std = "1.6"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
+futures-io = "0.3"
 once_cell = "1.4"
 pdfrs-afm = { path = "../pdfrs-afm", default-features = false, optional = true }
 pin-project = "0.4"

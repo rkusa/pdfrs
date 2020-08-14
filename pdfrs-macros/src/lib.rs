@@ -29,6 +29,7 @@ fn convert(mut input: syn::ItemFn, args: syn::AttributeArgs) -> Result<TokenStre
             ));
         }
     };
+
     let font_collection = match args.get(1) {
         Some(syn::NestedMeta::Meta(meta)) => match meta {
             syn::Meta::Path(path) => path,
@@ -39,6 +40,37 @@ fn convert(mut input: syn::ItemFn, args: syn::AttributeArgs) -> Result<TokenStre
                 ))
             }
         },
+        other => {
+            return Err(syn::Error::new_spanned(
+                other,
+                "Unsupported attribute inside the macro",
+            ));
+        }
+    };
+
+    let compressed = match args.get(2) {
+        Some(syn::NestedMeta::Meta(meta)) => match meta {
+            syn::Meta::NameValue(syn::MetaNameValue {
+                path,
+                eq_token: syn::token::Eq { .. },
+                lit: syn::Lit::Bool(syn::LitBool { value, .. }),
+            }) => match path.get_ident().map(|i| i.to_string()).as_deref() {
+                Some("compressed") => *value,
+                _ => {
+                    return Err(syn::Error::new_spanned(
+                        path,
+                        "Unsupported attribute type inside the macro",
+                    ))
+                }
+            },
+            other => {
+                return Err(syn::Error::new_spanned(
+                    other,
+                    "Unsupported attribute type inside the macro",
+                ))
+            }
+        },
+        None => false,
         other => {
             return Err(syn::Error::new_spanned(
                 other,
@@ -72,6 +104,7 @@ fn convert(mut input: syn::ItemFn, args: syn::AttributeArgs) -> Result<TokenStre
                 .with_id("test")
                 .with_creation_date(Utc.ymd(2019, 6, 2).and_hms(14, 28, 0))
                 .with_producer("pdfrs [test] (github.com/rkusa/pdfrs)")
+                .with_compressed(#compressed)
                 .start(&mut result).await.unwrap();
 
             {

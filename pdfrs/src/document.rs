@@ -21,6 +21,8 @@ pub struct Document<F: FontCollection, W> {
     id: String,
     creation_date: DateTime<Utc>,
     producer: String,
+    #[allow(unused)]
+    compressed: bool,
     page_state: PageState,
     font_collection: F,
     subsets: HashMap<F::FontRef, HashMap<SubsetRef, ObjectId>>,
@@ -30,6 +32,7 @@ pub struct DocumentBuilder<F: FontCollection> {
     id: Option<String>,
     creation_date: Option<DateTime<Utc>>,
     producer: Option<String>,
+    compressed: bool,
     font_collection: F,
 }
 
@@ -208,6 +211,7 @@ where
             id: None,
             creation_date: None,
             producer: None,
+            compressed: true,
             font_collection,
         }
     }
@@ -230,6 +234,11 @@ where
         self
     }
 
+    pub fn with_compressed(mut self, compressed: bool) -> Self {
+        self.compressed = compressed;
+        self
+    }
+
     /// Constructs a new `Document<'a, W>`.
     ///
     /// The document will immediately start generating a PDF. Each time the document is provided
@@ -247,7 +256,7 @@ where
 
         Ok(Document {
             pages_obj_id: wr.reserve_object_id(),
-            page_stream: Some(wr.start_stream().await?),
+            page_stream: Some(wr.start_stream(self.compressed).await?),
             pages: Vec::new(),
             id: self.id.unwrap_or_else(|| Uuid::new_v4().to_string()),
             creation_date: self.creation_date.unwrap_or_else(Utc::now),
@@ -257,6 +266,7 @@ where
                     env!("CARGO_PKG_VERSION")
                 )
             }),
+            compressed: self.compressed,
             page_state: PageState::default(),
             font_collection: self.font_collection,
             subsets: HashMap::new(),

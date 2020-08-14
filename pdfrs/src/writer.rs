@@ -3,10 +3,11 @@ use std::io;
 
 use crate::idseq::IdSeq;
 use crate::stream::{to_async_writer, Stream};
-use async_std::io::prelude::{Write, WriteExt};
+use async_std::io::prelude::WriteExt;
 use async_std::io::BufWriter;
 use async_std::task::Context;
 use async_std::task::Poll;
+use futures_io::AsyncWrite;
 use pin_project::pin_project;
 use serde::Serialize;
 use serde_pdf::{Object, ObjectId, Reference};
@@ -25,7 +26,7 @@ pub struct DocWriter<W> {
     xref: HashMap<usize, usize>, // <object id, offset>
 }
 
-impl<W: Write + Unpin> DocWriter<W> {
+impl<W: AsyncWrite + Unpin> DocWriter<W> {
     /// Constructs a new `DocWriter<W>` wrapping the given writer.
     pub fn new(w: W, id_seq: IdSeq) -> Self {
         DocWriter {
@@ -125,12 +126,12 @@ impl<W: Write + Unpin> DocWriter<W> {
         Ok(())
     }
 
-    pub async fn start_stream(self) -> Result<Stream<W>, io::Error> {
-        Stream::start(self).await
+    pub async fn start_stream(self, compressed: bool) -> Result<Stream<W>, io::Error> {
+        Stream::start(self, compressed, false).await
     }
 }
 
-impl<W: Write + Unpin> Write for DocWriter<W> {
+impl<W: AsyncWrite + Unpin> AsyncWrite for DocWriter<W> {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,

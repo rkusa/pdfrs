@@ -1,12 +1,15 @@
 use std::collections::HashSet;
 use std::io;
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 
 use crate::fonts::{Font, SubsetRef};
 use crate::writer::DocWriter;
-use async_std::io::{prelude::WriteExt, Write};
+use async_compression::futures::write::ZlibEncoder;
+use async_std::io::prelude::WriteExt;
 use async_std::task::Context;
 use async_std::task::Poll;
+use futures_io::AsyncWrite;
 use pin_project::pin_project;
 use serde::Serialize;
 use serde_pdf::{Object, ObjectId, Reference};
@@ -18,35 +21,87 @@ use serde_pdf::{Object, ObjectId, Reference};
 pub struct Stream<W> {
     id: ObjectId,
     len_obj_id: ObjectId,
-    len: usize,
+    len1_obj_id: Option<ObjectId>,
+    len1: usize,
+    doc_len_before: usize,
     #[pin]
-    wr: DocWriter<W>,
+    wr: StreamInner<W>,
     prev_subset: Option<SubsetRef>,
+}
+
+#[pin_project(project = StreamInnerProj)]
+enum StreamInner<W> {
+    Doc(#[pin] DocWriter<W>),
+    Deflate(#[pin] ZlibEncoder<DocWriter<W>>),
 }
 
 /// The properties of a PDF stream's PDF object.
 #[derive(Serialize)]
 #[serde(rename_all = "PascalCase")]
 #[serde(rename = "")]
-pub struct StreamMeta {
-    pub length: Reference<usize>,
+struct StreamMeta {
+    length: Reference<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    length1: Option<Reference<usize>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    filter: Vec<Filter>,
+}
+
+#[derive(Serialize)]
+enum Filter {
+    FlateDecode,
+    // TODO: ASCII85Decode,
 }
 
 /// A type used to create PDF references (`Reference<StreamRef>`).
 pub type StreamRef = ();
 
-impl<W: Write + Unpin> Stream<W> {
+impl<W: AsyncWrite + Unpin> Stream<W> {
     /// Constructs a new PDF stream.
-    pub async fn start(mut wr: DocWriter<W>) -> Result<Stream<W>, io::Error> {
-        let mut stream = Stream {
-            id: wr.reserve_object_id(),
-            len_obj_id: wr.reserve_object_id(),
-            len: 0,
-            wr,
-            prev_subset: None,
+    pub async fn start(
+        mut wr: DocWriter<W>,
+        compresse: bool,
+        with_len1: bool,
+    ) -> Result<Stream<W>, io::Error> {
+        let id = wr.reserve_object_id();
+        let len_obj_id = wr.reserve_object_id();
+        let len1_obj_id = if compresse && with_len1 {
+            Some(wr.reserve_object_id())
+        } else {
+            None
         };
-        stream.write_header().await?;
-        Ok(stream)
+
+        wr.add_xref(id.id());
+        writeln!(wr, "{} {} obj", id.id(), id.rev()).await?;
+        to_async_writer(
+            &mut wr,
+            &StreamMeta {
+                length: Reference::new(len_obj_id.clone()),
+                length1: len1_obj_id.clone().map(Reference::new),
+                filter: if compresse {
+                    vec![Filter::FlateDecode]
+                } else {
+                    Vec::new()
+                },
+            },
+        )
+        .await
+        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+        writeln!(wr, "\nstream").await?;
+
+        Ok(Stream {
+            id,
+            len_obj_id,
+            len1_obj_id,
+            len1: 0,
+            doc_len_before: wr.len(),
+            wr: if compresse {
+                StreamInner::Deflate(ZlibEncoder::new(wr))
+            } else {
+                StreamInner::Doc(wr)
+            },
+            prev_subset: None,
+        })
     }
 
     /// Returns a PDF reference to the stream's PDF object.
@@ -55,39 +110,34 @@ impl<W: Write + Unpin> Stream<W> {
     }
 
     pub fn reserve_object_id(&mut self) -> ObjectId {
-        self.wr.reserve_object_id()
-    }
-
-    /// Writes the stream's and its corresponding object's start markers, as well as writing its
-    /// object properties (which includes a reference to its length object).
-    async fn write_header(&mut self) -> Result<(), io::Error> {
-        self.wr.add_xref(self.id.id());
-        writeln!(self.wr, "{} {} obj", self.id.id(), self.id.rev()).await?;
-        to_async_writer(
-            &mut self.wr,
-            &StreamMeta {
-                length: Reference::new(self.len_obj_id.clone()),
-            },
-        )
-        .await
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-        writeln!(self.wr, "\nstream").await?;
-
-        Ok(())
+        match &mut self.wr {
+            StreamInner::Doc(d) => d.reserve_object_id(),
+            StreamInner::Deflate(d) => d.get_mut().reserve_object_id(),
+        }
     }
 
     /// Ends the PDF stream, which involves writing the stream's and corresponding object's end
     /// markers and the stream's length object.
     pub async fn end(mut self) -> Result<DocWriter<W>, io::Error> {
-        writeln!(self.wr, "endstream\nendobj\n").await?;
+        self.flush().await?;
+        let len = self.wr.len() - self.doc_len_before;
+        let mut wr = self.wr.into_inner();
+        writeln!(wr, "\nendstream\nendobj\n").await?;
 
-        self.wr.add_xref(self.len_obj_id.id());
-        let len_obj = Object::new(self.len_obj_id.id(), self.len_obj_id.rev(), self.len);
-        to_async_writer(&mut self.wr, &len_obj)
+        wr.add_xref(self.len_obj_id.id());
+        let len_obj = Object::new(self.len_obj_id.id(), self.len_obj_id.rev(), len);
+        to_async_writer(&mut wr, &len_obj)
             .await
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
-        Ok(self.wr)
+        if let Some(len1_obj_id) = self.len1_obj_id {
+            let len1_obj = Object::new(len1_obj_id.id(), len1_obj_id.rev(), self.len1);
+            to_async_writer(&mut wr, &len1_obj)
+                .await
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+        }
+
+        Ok(wr)
     }
 
     /// Begins a text object (BT - PDF spec 1.7 page 405).
@@ -200,17 +250,21 @@ impl<W: Write + Unpin> Stream<W> {
     }
 }
 
-impl<W: Write + Unpin> Write for Stream<W> {
+impl<W: AsyncWrite + Unpin> AsyncWrite for Stream<W> {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         let project = self.project();
-        match project.wr.poll_write(cx, buf) {
+        let poll = match project.wr.project() {
+            StreamInnerProj::Doc(w) => w.poll_write(cx, buf),
+            StreamInnerProj::Deflate(w) => w.poll_write(cx, buf),
+        };
+        match poll {
             Poll::Ready(result) => {
                 let len = result?;
-                *project.len += len;
+                *project.len1 += len;
                 Poll::Ready(Ok(len))
             }
             Poll::Pending => Poll::Pending,
@@ -218,22 +272,66 @@ impl<W: Write + Unpin> Write for Stream<W> {
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.project().wr.poll_flush(cx)
+        match self.project().wr.project() {
+            StreamInnerProj::Doc(w) => w.poll_flush(cx),
+            StreamInnerProj::Deflate(w) => w.poll_flush(cx),
+        }
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.project().wr.poll_close(cx)
+        match self.project().wr.project() {
+            StreamInnerProj::Doc(w) => w.poll_close(cx),
+            StreamInnerProj::Deflate(w) => w.poll_close(cx),
+        }
     }
 }
 
 pub async fn to_async_writer<W, T>(mut w: W, value: &T) -> Result<(), serde_pdf::Error>
 where
-    W: async_std::io::Write + Unpin,
+    W: AsyncWrite + Unpin,
     T: Serialize,
 {
     let s = serde_pdf::to_string(value)?;
     w.write_all(s.as_bytes()).await?;
     Ok(())
+}
+
+impl<W> StreamInner<W>
+where
+    DocWriter<W>: AsyncWrite,
+{
+    fn into_inner(self) -> DocWriter<W> {
+        match self {
+            StreamInner::Doc(d) => d,
+            StreamInner::Deflate(d) => d.into_inner(),
+        }
+    }
+}
+
+impl<W> Deref for StreamInner<W>
+where
+    DocWriter<W>: AsyncWrite,
+{
+    type Target = DocWriter<W>;
+
+    fn deref(&self) -> &Self::Target {
+        match &self {
+            StreamInner::Doc(d) => d,
+            StreamInner::Deflate(d) => d.get_ref(),
+        }
+    }
+}
+
+impl<W> DerefMut for StreamInner<W>
+where
+    DocWriter<W>: AsyncWrite,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            StreamInner::Doc(d) => d,
+            StreamInner::Deflate(d) => d.get_mut(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -246,7 +344,7 @@ mod test {
     async fn test_position_glyphs() {
         let mut buf = Vec::new();
         let mut stream = DocWriter::new(&mut buf, IdSeq::new(1))
-            .start_stream()
+            .start_stream(false)
             .await
             .unwrap();
 

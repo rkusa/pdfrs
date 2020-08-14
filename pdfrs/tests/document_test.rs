@@ -18,3 +18,12 @@ async fn empty(doc: &mut Document<File>) {
 async fn basic_text(doc: &mut Document<_, File>) {
     doc.text("Hello World", None).await.unwrap();
 }
+
+#[pdf_test(
+    "./fixtures/basic_text_compressed.pdf",
+    afm_helvetica,
+    compressed = true
+)]
+async fn basic_text_compressed(doc: &mut Document<_, File>) {
+    doc.text("Hello World", None).await.unwrap();
+}
