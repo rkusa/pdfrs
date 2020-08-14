@@ -1,21 +1,14 @@
 use std::io;
 
-use crate::fonts::font::{
-    Font, FontCollection, FontEncoding, FontObject, FontType, SingleFont, SubsetRef,
-};
-use serde_pdf::PdfStr;
+use crate::fonts::font::{Font, FontCollection, SingleFont, SubsetRef};
+use crate::writer::DocWriter;
+use async_std::io::prelude::Write;
+use serde::Serialize;
+use serde_pdf::{Object, ObjectId, PdfStr};
 
 impl<'a> Font for &'a pdfrs_afm::AfmFont {
     fn base_name(&self) -> &str {
         self.font_name
-    }
-
-    fn object(&self) -> FontObject {
-        FontObject {
-            subtype: FontType::Type1,
-            base_font: self.base_name().to_string(),
-            encoding: FontEncoding::WinAnsiEncoding,
-        }
     }
 
     fn kerning(&self, lhs: char, rhs: char) -> Option<i32> {
@@ -30,12 +23,52 @@ impl<'a> Font for &'a pdfrs_afm::AfmFont {
 }
 
 #[cfg(any(feature = "afm", test))]
+#[async_trait::async_trait(?Send)]
 impl<'a> FontCollection for &'a pdfrs_afm::AfmFont {
     type FontRef = SingleFont;
 
     fn font(&self, _font: Self::FontRef) -> &dyn Font {
         self
     }
+
+    async fn write_objects<W: Write + Unpin>(
+        &self,
+        font: Self::FontRef,
+        obj_id: ObjectId,
+        doc: &mut DocWriter<W>,
+    ) -> Result<(), serde_pdf::Error> {
+        let font = self.font(font);
+        let font_obj = Object::new(
+            obj_id.id(),
+            obj_id.rev(),
+            FontObject {
+                subtype: FontType::Type1,
+                base_font: font.base_name(),
+                encoding: FontEncoding::WinAnsiEncoding,
+            },
+        );
+        doc.write_object(font_obj).await?;
+        Ok(())
+    }
+}
+
+#[derive(Serialize)]
+enum FontType {
+    Type1,
+}
+
+#[derive(Serialize)]
+enum FontEncoding {
+    WinAnsiEncoding,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "PascalCase")]
+#[serde(rename = "Font")]
+struct FontObject<'a> {
+    subtype: FontType,
+    base_font: &'a str,
+    encoding: FontEncoding,
 }
 
 #[cfg(test)]

@@ -1,73 +1,38 @@
 use std::collections::HashMap;
-use std::{io, mem};
+use std::io;
 
 use crate::idseq::IdSeq;
-use crate::stream::{to_async_writer, Stream, StreamRef};
+use crate::stream::{to_async_writer, Stream};
 use async_std::io::prelude::{Write, WriteExt};
 use async_std::io::BufWriter;
 use async_std::task::Context;
 use async_std::task::Poll;
 use pin_project::pin_project;
 use serde::Serialize;
-use serde_pdf::{Object, Reference};
+use serde_pdf::{Object, ObjectId, Reference};
 use std::pin::Pin;
-
-/// A type that is always [`Write`](async_std::io::Write), but either contains a `DocWriter<W>` or a
-/// [`Stream`](stream::Stream).
-#[pin_project(project = WriterProj)]
-pub enum Writer<W: Write> {
-    Doc(#[pin] DocWriter<W>),
-    Stream(#[pin] Stream<W>),
-    Null,
-}
 
 /// A type that keeps track of a PDF XREF table while forwarding writes to its wrapped writer.
 ///
 /// It keeps track of how many bytes have already been written to correctly reference objects
 /// inside the document.
 #[pin_project]
-pub struct DocWriter<W: Write> {
+pub struct DocWriter<W> {
     #[pin]
     w: BufWriter<W>,
     len: usize,
+    id_seq: IdSeq,
     xref: HashMap<usize, usize>, // <object id, offset>
-}
-
-impl<W: Write + Unpin> Writer<W> {
-    /// Converts the current variant into a `Writer::Stream`.
-    pub async fn into_stream(self, id_seq: &mut IdSeq) -> Result<Writer<W>, io::Error> {
-        Ok(match self {
-            Writer::Doc(w) => Writer::Stream(Stream::new(id_seq, w).await?),
-            s => s,
-        })
-    }
-
-    /// Ends the current `Stream<W>`, if it is currently one. Returns a reference to the ended
-    /// stream.
-    pub async fn end_stream(&mut self) -> Result<Option<Reference<StreamRef>>, io::Error> {
-        let out = mem::replace(&mut *self, Writer::Null);
-        match out {
-            Writer::Doc(w) => {
-                *self = Writer::Doc(w);
-                Ok(None)
-            }
-            Writer::Stream(stream) => {
-                let stream_ref = stream.to_reference();
-                *self = Writer::Doc(stream.end().await?);
-                Ok(Some(stream_ref))
-            }
-            Writer::Null => unreachable!(),
-        }
-    }
 }
 
 impl<W: Write + Unpin> DocWriter<W> {
     /// Constructs a new `DocWriter<W>` wrapping the given writer.
-    pub fn new(w: W) -> Self {
+    pub fn new(w: W, id_seq: IdSeq) -> Self {
         DocWriter {
             w: BufWriter::new(w),
             len: 0,
             xref: HashMap::new(),
+            id_seq,
         }
     }
 
@@ -80,6 +45,37 @@ impl<W: Write + Unpin> DocWriter<W> {
     /// `id`.
     pub fn add_xref(&mut self, id: usize) {
         self.xref.insert(id, self.len);
+    }
+
+    pub fn reserve_object_id(&mut self) -> ObjectId {
+        ObjectId::new(self.id_seq.next(), 0)
+    }
+
+    pub fn object_count(&mut self) -> usize {
+        self.id_seq.count()
+    }
+
+    /// Create a new PDF object with the given `content`.
+    ///
+    /// The document automatically assigns the next available object id to the new object (and a
+    /// revision of `0`).
+    fn new_object<D: Serialize>(&mut self, content: D) -> Object<D> {
+        Object::new(self.id_seq.next(), 0, content)
+    }
+
+    /// Creates new PDF object with the given `content`, intermediately writes it to the PDF
+    /// output, and returns a reference to the written object.
+    ///
+    /// The document automatically assigns the next available object id to the new object (and a
+    /// revision of `0`).
+    pub async fn serialize_object<D: Serialize>(
+        &mut self,
+        value: D,
+    ) -> Result<Reference<D>, serde_pdf::Error> {
+        let obj = self.new_object(value);
+        let r = obj.to_reference();
+        self.write_object(obj).await?;
+        Ok(r)
     }
 
     /// Writes the provided `object` to the PDF output.
@@ -128,35 +124,9 @@ impl<W: Write + Unpin> DocWriter<W> {
 
         Ok(())
     }
-}
 
-impl<W: Write + Unpin> Write for Writer<W> {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        match self.project() {
-            WriterProj::Doc(w) => w.poll_write(cx, buf),
-            WriterProj::Stream(w) => w.poll_write(cx, buf),
-            WriterProj::Null => unreachable!(),
-        }
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        match self.project() {
-            WriterProj::Doc(w) => w.poll_flush(cx),
-            WriterProj::Stream(w) => w.poll_flush(cx),
-            WriterProj::Null => unreachable!(),
-        }
-    }
-
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        match self.project() {
-            WriterProj::Doc(w) => w.poll_close(cx),
-            WriterProj::Stream(w) => w.poll_close(cx),
-            WriterProj::Null => unreachable!(),
-        }
+    pub async fn start_stream(self) -> Result<Stream<W>, io::Error> {
+        Stream::start(self).await
     }
 }
 
@@ -193,7 +163,7 @@ mod test {
     #[async_std::test]
     async fn xref_1() {
         let mut b = Vec::new();
-        let mut w = DocWriter::new(&mut b);
+        let mut w = DocWriter::new(&mut b, IdSeq::new(0));
 
         w.xref.insert(1, 3);
         w.xref.insert(2, 17);
@@ -212,7 +182,7 @@ mod test {
     #[async_std::test]
     async fn xref_2() {
         let mut b = Vec::new();
-        let mut w = DocWriter::new(&mut b);
+        let mut w = DocWriter::new(&mut b, IdSeq::new(0));
 
         w.xref.insert(3, 25325);
         w.xref.insert(23, 25518);

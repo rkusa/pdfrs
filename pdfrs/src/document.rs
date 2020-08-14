@@ -5,24 +5,19 @@ use std::mem;
 use crate::fonts::{FontCollection, SubsetRef};
 use crate::idseq::IdSeq;
 use crate::page::{FontRef, Page, Pages, Resources};
-use crate::stream::{to_async_writer, StreamRef};
-use crate::writer::{DocWriter, Writer};
+use crate::stream::{to_async_writer, Stream, StreamRef};
+use crate::writer::DocWriter;
 use async_std::io::prelude::{Write, WriteExt};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_pdf::{Object, ObjectId, PdfStr, Reference};
-use thiserror::Error;
 use uuid::Uuid;
 
-const RESERVED_PAGES_ID: usize = 1;
-// const PAGES_ID: ObjectId = ObjectId::new(RESERVED_PAGES_ID, 0);
-// const PAGES_REFERENCE: Reference<Pages<'_>> = Reference::new(PAGES_ID);
-
 /// A type used to generate a PDF document.
-pub struct Document<'a, F: FontCollection, W: Write> {
-    out: Writer<W>,
-    id_seq: IdSeq,
-    pages: Vec<Reference<Page<'a>>>,
+pub struct Document<F: FontCollection, W> {
+    page_stream: Option<Stream<W>>,
+    pages_obj_id: ObjectId,
+    pages: Vec<Reference<Page>>,
     id: String,
     creation_date: DateTime<Utc>,
     producer: String,
@@ -31,149 +26,57 @@ pub struct Document<'a, F: FontCollection, W: Write> {
     subsets: HashMap<F::FontRef, HashMap<SubsetRef, ObjectId>>,
 }
 
+pub struct DocumentBuilder<F: FontCollection> {
+    id: Option<String>,
+    creation_date: Option<DateTime<Utc>>,
+    producer: Option<String>,
+    font_collection: F,
+}
+
 #[derive(Default, Eq, PartialEq)]
-struct PageState {
+pub(crate) struct PageState {
     fonts: HashMap<SubsetRef, Reference<FontRef>>,
     contents: Vec<Reference<StreamRef>>,
 }
 
-impl<'a, F, W> Document<'a, F, W>
+impl<F> Document<F, ()>
+where
+    F: FontCollection,
+{
+    pub fn builder(font_collection: F) -> DocumentBuilder<F> {
+        DocumentBuilder::new(font_collection)
+    }
+}
+
+impl<F, W> Document<F, W>
 where
     F: FontCollection,
     W: Write + Unpin,
 {
-    /// Constructs a new `Document<'a, W>`.
-    ///
-    /// The document will immediately start generating a PDF. Each time the document is provided
-    /// with further content, the resulting PDF output is generated right-away (most of the times).
-    /// The resulting output is not buffered. It is directly written into the given `writer`. For
-    /// most use-cases, it is thus recommended to provide a [`BufWriter`](std::io::BufWriter).
-    pub async fn new(fonts: F, writer: W) -> Result<Document<'a, F, W>, io::Error> {
-        let mut writer = DocWriter::new(writer);
-
-        // The PDF format mandates that we add at least 4 commented binary characters
-        // (ASCII value >= 128), so that generic tools have a chance to detect
-        // that it's a binary file
-        write!(writer, "%PDF-1.6\n%").await?;
-        writer
-            .write_all(&[255, 255, 255, 255, b'\n', b'\n'])
-            .await?;
-
-        let mut doc = Document {
-            out: Writer::Doc(writer),
-            id_seq: IdSeq::new(RESERVED_PAGES_ID + 1),
-            pages: Vec::new(),
-            id: Uuid::new_v4().to_string(),
-            creation_date: Utc::now(),
-            producer: format!(
-                "pdfrs v{} (github.com/rkusa/pdfrs)",
-                env!("CARGO_PKG_VERSION")
-            ),
-            page_state: PageState::default(),
-            font_collection: fonts,
-            subsets: HashMap::new(),
-        };
-        doc.start_page().await?;
-        Ok(doc)
-    }
-
-    /// Overrides the automatically generated PDF id by the provided `id`.
-    pub fn set_id<S: Into<String>>(&mut self, id: S) {
-        self.id = id.into();
-    }
-
-    /// Overrides the PDF's creation date (now by default) by the provided `date`.
-    pub fn set_creation_date(&mut self, date: DateTime<Utc>) {
-        self.creation_date = date;
-    }
-
-    /// Overrides the default producer (pdfrs) by the provided `producer`.
-    pub fn set_producer<S: Into<String>>(&mut self, producer: S) {
-        self.producer = producer.into();
-    }
-
-    /// Create a new PDF object with the given `content`.
-    ///
-    /// The document automatically assigns the next available object id to the new object (and a
-    /// revision of `0`).
-    fn new_object<D: Serialize>(&mut self, content: D) -> Object<D> {
-        Object::new(self.id_seq.next(), 0, content)
-    }
-
-    /// Starts a new PDF stream object.
-    ///
-    /// If there is currently no PDF stream active, creates a new PDF stream object, writes its
-    /// header and updates the document to write to that stream object until it is closed via
-    /// [self.out.end_stream()].
-    async fn new_stream(&mut self) -> Result<(), io::Error> {
-        let out = mem::replace(&mut self.out, Writer::Null);
-        self.out = out.into_stream(&mut self.id_seq).await?;
-        Ok(())
-    }
-
-    /// Creates new PDF object with the given `content`, intermediately writes it to the PDF
-    /// output, and returns a reference to the written object.
-    ///
-    /// The document automatically assigns the next available object id to the new object (and a
-    /// revision of `0`).
-    async fn write_object<D: Serialize>(
-        &mut self,
-        value: D,
-    ) -> Result<Reference<D>, serde_pdf::Error> {
-        let obj = self.new_object(value);
-        let r = obj.to_reference();
-        self.write(obj).await?;
-        Ok(r)
-    }
-
-    /// Writes the provided `object` to the PDF output.
-    async fn write<D: Serialize>(&mut self, object: Object<D>) -> Result<(), serde_pdf::Error> {
-        match self.out {
-            Writer::Stream(_) => {
-                // FIXME: maybe close stream instead of panicing
-                unreachable!();
-            }
-            Writer::Doc(ref mut w) => w.write_object(object).await,
-            Writer::Null => unreachable!(),
-        }
-    }
-
-    /// Starts a new PDF page, and starts the page stream.
-    async fn start_page(&mut self) -> Result<(), io::Error> {
-        self.new_stream().await
-    }
-
     /// Ends the current active page (if there is any), and adds the finished page to the document
     /// catalog.
-    async fn end_page(&mut self) -> Result<(), serde_pdf::Error> {
-        if let Some(content_ref) = self.out.end_stream().await? {
-            // TODO: move to consts once const_fn landed
-            let id = ObjectId::new(RESERVED_PAGES_ID, 0);
-            let reference: Reference<Pages<'_>> = Reference::new(id);
+    async fn end_page(&mut self) -> Result<DocWriter<W>, Error> {
+        let page_stream = self.page_stream.take().ok_or(Error::StreamGone)?;
 
-            let mut page_state = mem::take(&mut self.page_state);
-            page_state.contents.push(content_ref);
+        let mut page_state = mem::take(&mut self.page_state);
+        page_state.contents.push(page_stream.to_reference());
+        let page = Page {
+            parent: Reference::new(self.pages_obj_id.clone()),
+            resources: Resources {
+                font: page_state
+                    .fonts
+                    .into_iter()
+                    .map(|(s, r)| (format!("F{}", s.font_id()), r))
+                    .collect(),
+            },
+            contents: page_state.contents,
+        };
 
-            let page = Page {
-                parent: reference,
-                resources: Resources {
-                    // while obsolete since PDF 1.4, still here for compatibility reasons, and simply
-                    // setting all possible values ...
-                    proc_set: vec!["PDF", "Text", "ImageB", "ImageC", "ImageI"],
-                    font: page_state
-                        .fonts
-                        .into_iter()
-                        .map(|(s, r)| (format!("F{}", s.font_id()), r))
-                        .collect(),
-                },
-                contents: page_state.contents,
-            };
+        let mut doc = page_stream.end().await?;
+        let page_ref = doc.serialize_object(page).await?;
+        self.pages.push(page_ref);
 
-            let page_ref = self.write_object(page).await?;
-            self.pages.push(page_ref);
-        }
-
-        Ok(())
+        Ok(doc)
     }
 
     pub async fn text(&mut self, text: &str, font_ref: Option<F::FontRef>) -> Result<(), Error> {
@@ -188,17 +91,12 @@ where
             .entry(font_ref)
             .or_insert_with(Default::default);
 
-        let subset_refs = match &mut self.out {
-            Writer::Stream(ref mut s) => crate::text::write_text(text, font, s).await?,
-            Writer::Doc(_) | Writer::Null => {
-                // FIXME: return error instead, or ignore and do nothing
-                unreachable!();
-            }
-        };
+        let page_stream = self.page_stream.as_mut().ok_or(Error::StreamGone)?;
+        let subset_refs = crate::text::write_text(text, font, page_stream).await?;
 
         for subset_ref in &subset_refs {
             if !subsets.contains_key(&subset_ref) {
-                subsets.insert(*subset_ref, ObjectId::new(self.id_seq.next(), 0));
+                subsets.insert(*subset_ref, page_stream.reserve_object_id());
             }
         }
         self.page_state.fonts.extend(
@@ -214,62 +112,50 @@ where
     ///
     /// This writes all the document's metadata and page reference to the PDF output. The document's
     /// `writer` contains a valid PDF afterwards.
-    pub async fn end(mut self) -> Result<(), serde_pdf::Error> {
+    pub async fn end(mut self) -> Result<(), Error> {
         #[derive(Serialize)]
         #[serde(rename_all = "PascalCase")]
-        struct Catalog<'a> {
-            pages: Reference<Pages<'a>>,
+        struct Catalog {
+            pages: Reference<Pages>,
         }
 
-        if self.pages.is_empty() {
-            self.start_page().await?;
-        }
-
-        self.end_page().await?;
-
-        // Write pages
-        let kids = mem::replace(&mut self.pages, Vec::new());
-        let pages = Object::new(
-            RESERVED_PAGES_ID,
-            0,
-            Pages {
-                media_box: (0.0, 0.0, 595.296, 841.896),
-                count: kids.len(),
-                kids,
-            },
-        );
-        let pages_ref = pages.to_reference();
-        self.write(pages).await?;
-        let catalog_ref = self.write_object(Catalog { pages: pages_ref }).await?;
+        let mut doc = self.end_page().await?;
 
         let Document {
-            out,
-            mut id_seq,
             id,
             producer,
             font_collection,
             subsets,
+            pages,
             ..
         } = self;
 
-        let mut out = match out {
-            Writer::Doc(w) => w,
-            Writer::Stream(w) => w.end().await?,
-            Writer::Null => unreachable!(),
-        };
+        // Write pages
+        let pages_obj = Object::new(
+            self.pages_obj_id.id(),
+            self.pages_obj_id.rev(),
+            Pages {
+                media_box: (0.0, 0.0, 595.296, 841.896),
+                count: pages.len(),
+                kids: pages,
+            },
+        );
+        let pages_ref = pages_obj.to_reference();
+        doc.write_object(pages_obj).await?;
+        let catalog_ref = doc.serialize_object(Catalog { pages: pages_ref }).await?;
 
         // Write fonts
         for (font_ref, subsets) in subsets {
-            let font = font_collection.font(font_ref);
             for (_, id) in subsets {
-                let font_obj = Object::new(id.id(), id.rev(), font.object());
-                out.write_object(font_obj).await?;
+                font_collection
+                    .write_objects(font_ref, id, &mut doc)
+                    .await?;
             }
         }
 
         // xref
-        let startxref = out.len();
-        out.write_xref().await?;
+        let startxref = doc.len();
+        doc.write_xref().await?;
 
         // trailer
         #[derive(Serialize)]
@@ -286,17 +172,18 @@ where
         #[serde(rename = "")]
         struct Trailer<'a> {
             size: usize,
-            root: Reference<Catalog<'a>>,
+            root: Reference<Catalog>,
             #[serde(rename = "ID")]
             id: (PdfStr<'a>, PdfStr<'a>),
             info: Info<'a>,
         }
 
-        writeln!(out, "trailer").await?;
+        writeln!(doc, "trailer").await?;
+        let size = doc.object_count() - 1;
         to_async_writer(
-            &mut out,
+            &mut doc,
             &Trailer {
-                size: id_seq.count() - 1,
+                size,
                 root: catalog_ref,
                 id: (PdfStr::Hex(&id), PdfStr::Hex(&id)),
                 info: Info {
@@ -306,16 +193,83 @@ where
             },
         )
         .await?;
-        write!(out, "\nstartxref\n{}\n%%EOF", startxref).await?;
+        write!(doc, "\nstartxref\n{}\n%%EOF", startxref).await?;
 
         Ok(())
     }
 }
 
-#[derive(Error, Debug)]
+impl<F> DocumentBuilder<F>
+where
+    F: FontCollection,
+{
+    pub fn new(font_collection: F) -> Self {
+        DocumentBuilder {
+            id: None,
+            creation_date: None,
+            producer: None,
+            font_collection,
+        }
+    }
+
+    /// Overrides the automatically generated PDF id by the provided `id`.
+    pub fn with_id<S: Into<String>>(mut self, id: S) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    /// Overrides the PDF's creation date (now by default) by the provided `date`.
+    pub fn with_creation_date(mut self, date: DateTime<Utc>) -> Self {
+        self.creation_date = Some(date);
+        self
+    }
+
+    /// Overrides the default producer (pdfrs) by the provided `producer`.
+    pub fn with_producer<S: Into<String>>(mut self, producer: S) -> Self {
+        self.producer = Some(producer.into());
+        self
+    }
+
+    /// Constructs a new `Document<'a, W>`.
+    ///
+    /// The document will immediately start generating a PDF. Each time the document is provided
+    /// with further content, the resulting PDF output is generated right-away (most of the times).
+    /// The resulting output is not buffered. It is directly written into the given `writer`. For
+    /// most use-cases, it is thus recommended to provide a [`BufWriter`](std::io::BufWriter).
+    pub async fn start<'a, W: Write + Unpin>(self, writer: W) -> Result<Document<F, W>, io::Error> {
+        let mut wr = DocWriter::new(writer, IdSeq::new(1));
+
+        // The PDF format mandates that we add at least 4 commented binary characters
+        // (ASCII value >= 128), so that generic tools have a chance to detect
+        // that it's a binary file
+        write!(wr, "%PDF-1.6\n%").await?;
+        wr.write_all(&[255, 255, 255, 255, b'\n', b'\n']).await?;
+
+        Ok(Document {
+            pages_obj_id: wr.reserve_object_id(),
+            page_stream: Some(wr.start_stream().await?),
+            pages: Vec::new(),
+            id: self.id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+            creation_date: self.creation_date.unwrap_or_else(Utc::now),
+            producer: self.producer.unwrap_or_else(|| {
+                format!(
+                    "pdfrs v{} (github.com/rkusa/pdfrs)",
+                    env!("CARGO_PKG_VERSION")
+                )
+            }),
+            page_state: PageState::default(),
+            font_collection: self.font_collection,
+            subsets: HashMap::new(),
+        })
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("error writing PDF")]
+    #[error("Error writing PDF")]
     Io(#[from] io::Error),
-    #[error("error creating PDF object")]
+    #[error("Error creating PDF object")]
     Pdf(#[from] serde_pdf::Error),
+    #[error("Page stream gone (this is a bug, please report)")]
+    StreamGone,
 }

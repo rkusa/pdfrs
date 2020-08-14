@@ -13,7 +13,7 @@ pub mod afm;
 mod font;
 // mod otf;
 
-// pub use self::otf::{OpenTypeFont, Subset};
-pub use font::{Font, FontCollection, FontObject, SubsetRef};
+// pub use self::otf::OpenTypeFont;
+pub use font::{Font, FontCollection, SubsetRef};
 #[cfg(any(feature = "afm", test))]
 pub use pdfrs_afm::*;

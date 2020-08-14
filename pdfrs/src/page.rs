@@ -6,9 +6,9 @@ use serde_pdf::Reference;
 
 #[derive(Serialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct Pages<'a> {
+pub struct Pages {
     pub media_box: (f64, f64, f64, f64),
-    pub kids: Vec<Reference<Page<'a>>>,
+    pub kids: Vec<Reference<Page>>,
     pub count: usize,
 }
 
@@ -16,16 +16,15 @@ pub type FontRef = ();
 
 #[derive(Serialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct Resources<'a> {
-    pub proc_set: Vec<&'a str>,
+pub struct Resources {
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub font: HashMap<String, Reference<FontRef>>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct Page<'a> {
-    pub parent: Reference<Pages<'a>>,
-    pub resources: Resources<'a>,
+pub struct Page {
+    pub parent: Reference<Pages>,
+    pub resources: Resources,
     pub contents: Vec<Reference<StreamRef>>,
 }

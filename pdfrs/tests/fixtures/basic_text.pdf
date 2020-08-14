@@ -26,7 +26,6 @@ endobj
 	/Parent 1 0 R
 	/Resources <<
 		/Type /Resources
-		/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]
 		/Font << /F0 4 0 R >>
 	>>
 	/Contents [2 0 R]
@@ -61,12 +60,12 @@ endobj
 xref
 0 7
 0000000000 65535 f
-0000000394 00000 n
+0000000346 00000 n
 0000000016 00000 n
 0000000195 00000 n
-0000000540 00000 n
+0000000492 00000 n
 0000000215 00000 n
-0000000488 00000 n
+0000000440 00000 n
 trailer
 <<
 	/Size 5
@@ -78,5 +77,5 @@ trailer
 	>>
 >>
 startxref
-642
+594
 %%EOF

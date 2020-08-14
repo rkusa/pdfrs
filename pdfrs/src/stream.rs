@@ -3,7 +3,6 @@ use std::io;
 use std::pin::Pin;
 
 use crate::fonts::{Font, SubsetRef};
-use crate::idseq::IdSeq;
 use crate::writer::DocWriter;
 use async_std::io::{prelude::WriteExt, Write};
 use async_std::task::Context;
@@ -16,7 +15,7 @@ use serde_pdf::{Object, ObjectId, Reference};
 /// corresponding PDF object, keeping track of the stream's length as well as writing the stream
 /// it all it's related meta data to the PDF document.
 #[pin_project]
-pub struct Stream<W: Write> {
+pub struct Stream<W> {
     id: ObjectId,
     len_obj_id: ObjectId,
     len: usize,
@@ -38,10 +37,10 @@ pub type StreamRef = ();
 
 impl<W: Write + Unpin> Stream<W> {
     /// Constructs a new PDF stream.
-    pub async fn new(id_seq: &mut IdSeq, wr: DocWriter<W>) -> Result<Stream<W>, io::Error> {
+    pub async fn start(mut wr: DocWriter<W>) -> Result<Stream<W>, io::Error> {
         let mut stream = Stream {
-            id: ObjectId::new(id_seq.next(), 0),
-            len_obj_id: ObjectId::new(id_seq.next(), 0),
+            id: wr.reserve_object_id(),
+            len_obj_id: wr.reserve_object_id(),
             len: 0,
             wr,
             prev_subset: None,
@@ -53,6 +52,10 @@ impl<W: Write + Unpin> Stream<W> {
     /// Returns a PDF reference to the stream's PDF object.
     pub fn to_reference(&self) -> Reference<StreamRef> {
         Reference::new(self.id.clone())
+    }
+
+    pub fn reserve_object_id(&mut self) -> ObjectId {
+        self.wr.reserve_object_id()
     }
 
     /// Writes the stream's and its corresponding object's start markers, as well as writing its
@@ -242,8 +245,8 @@ mod test {
     #[async_std::test]
     async fn test_position_glyphs() {
         let mut buf = Vec::new();
-        let mut id_seq = IdSeq::new(0);
-        let mut stream = Stream::new(&mut id_seq, DocWriter::new(&mut buf))
+        let mut stream = DocWriter::new(&mut buf, IdSeq::new(1))
+            .start_stream()
             .await
             .unwrap();
 

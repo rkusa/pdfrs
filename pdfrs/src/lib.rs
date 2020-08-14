@@ -7,4 +7,4 @@ mod stream;
 mod text;
 mod writer;
 
-pub use document::Document;
+pub use document::{Document, DocumentBuilder};
