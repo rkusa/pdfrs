@@ -12,113 +12,113 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 #[derive(Debug, PartialEq, Clone)]
 pub struct Os2Table {
     /// The version number for the OS/2 table: 0x0000 to 0x0005.
-    version: u16,
+    pub(crate) version: u16,
     /// he Average Character Width parameter specifies the arithmetic average of the escapement
     /// (width) of all non-zero width glyphs in the font.
-    x_avg_char_width: i16,
+    pub(crate) x_avg_char_width: i16,
     /// Indicates the visual weight (degree of blackness or thickness of strokes) of the characters
     /// in the font. Values from 1 to 1000 are valid.
-    us_weight_class: u16,
+    pub(crate) us_weight_class: u16,
     /// Indicates a relative change from the normal aspect ratio (width to height ratio) as
     /// specified by a font designer for the glyphs in a font.
-    us_width_class: u16,
+    pub(crate) us_width_class: u16,
     /// Indicates font embedding licensing rights for the font.
     // TODO: use to prevent embedding certain fonts into a PDF?
-    fs_type: u16,
+    pub(crate) fs_type: u16,
     /// The recommended horizontal size in font design units for subscripts for this font.
-    y_subscript_x_size: i16,
+    pub(crate) y_subscript_x_size: i16,
     /// The recommended vertical size in font design units for subscripts for this font.
-    y_subscript_y_size: i16,
+    pub(crate) y_subscript_y_size: i16,
     /// The recommended horizontal offset in font design units for subscripts for this font.
-    y_subscript_x_offset: i16,
+    pub(crate) y_subscript_x_offset: i16,
     /// The recommended vertical offset in font design units from the baseline for subscripts for
     /// this font.
-    y_subscript_y_offset: i16,
+    pub(crate) y_subscript_y_offset: i16,
     /// The recommended horizontal size in font design units for superscripts for this font.
-    y_superscript_x_size: i16,
+    pub(crate) y_superscript_x_size: i16,
     /// The recommended vertical size in font design units for superscripts for this font.
-    y_superscript_y_size: i16,
+    pub(crate) y_superscript_y_size: i16,
     /// The recommended horizontal offset in font design units for superscripts for this font.
-    y_superscript_x_offset: i16,
+    pub(crate) y_superscript_x_offset: i16,
     /// The recommended vertical offset in font design units from the baseline for superscripts for
     /// this font.
-    y_superscript_y_offset: i16,
+    pub(crate) y_superscript_y_offset: i16,
     /// Thickness of the strikeout stroke in font design units.
-    y_strikeout_size: i16,
+    pub(crate) y_strikeout_size: i16,
     /// The position of the top of the strikeout stroke relative to the baseline in font design units.
-    y_strikeout_position: i16,
+    pub(crate) y_strikeout_position: i16,
     /// This parameter is a classification of font-family design.
-    s_family_class: i16,
+    pub(crate) s_family_class: i16,
     /// This 10-byte series of numbers is used to describe the visual characteristics of a given
     /// typeface.
-    panose: [u8; 10],
+    pub(crate) panose: [u8; 10],
     /// This field is used to specify the Unicode blocks or ranges encompassed by the font file in
     /// 'cmap' subtables for platform 3, encoding ID 1 (Microsoft platform, Unicode BMP) and
     /// platform 3, encoding ID 10 (Microsoft platform, Unicode full repertoire). If a bit is set
     /// (1), then the Unicode ranges assigned to that bit are considered functional. If the bit is
     /// clear (0), then the range is not considered functional.
-    ul_unicode_range: [u32; 4],
+    pub(crate) ul_unicode_range: [u32; 4],
     /// The four-character identifier for the vendor of the given type face.
-    ach_vend_id: [u8; 4],
+    pub(crate) ach_vend_id: [u8; 4],
     /// Contains information concerning the nature of the font patterns.
-    fs_selection: u16,
+    pub(crate) fs_selection: u16,
     /// The minimum Unicode index (character code) in this font, according to the 'cmap' subtable
     /// for platform ID 3 and platform- specific encoding ID 0 or 1. For most fonts supporting
     /// Win-ANSI or other character sets, this value would be 0x0020. This field cannot represent
     /// supplementary character values (codepoints greater than 0xFFFF). Fonts that support
     /// supplementary characters should set the value in this field to 0xFFFF if the minimum index
     /// value is a supplementary character.
-    us_first_char_index: u16,
+    pub(crate) us_first_char_index: u16,
     /// The maximum Unicode index (character code) in this font, according to the 'cmap' subtable
     /// for platform ID 3 and encoding ID 0 or 1. This value depends on which character sets the
     /// font supports. This field cannot represent supplementary character values (codepoints
     /// greater than 0xFFFF). Fonts that support supplementary characters should set the value in
     /// this field to 0xFFFF.
-    us_last_char_index: u16,
+    pub(crate) us_last_char_index: u16,
     /// The typographic ascender for this font. This field should be combined with the
     /// `s_typo_descender` and `s_typo_line_gap` values to determine default line spacing.
-    s_typo_ascender: i16,
+    pub(crate) s_typo_ascender: i16,
     /// The typographic descender for this font. This field should be combined with the
     /// `s_typo_ascender` and `s_typo_line_gap` values to determine default line spacing.
-    s_typo_descender: i16,
+    pub(crate) s_typo_descender: i16,
     /// The typographic line gap for this font. This field should be combined with the
     /// `s_typo_ascender` and `s_typo_descender` values to determine default line spacing.
-    s_typo_line_gap: i16,
+    pub(crate) s_typo_line_gap: i16,
     /// The “Windows ascender” metric. This should be used to specify the height above the baseline
     /// for a clipping region.
-    us_win_ascent: u16,
+    pub(crate) us_win_ascent: u16,
     /// The “Windows descender” metric. This should be used to specify the vertical extent below the
     /// baseline for a clipping region.
-    us_win_descent: u16,
+    pub(crate) us_win_descent: u16,
 
     // the following fields are only available for version > 0
     /// This field is used to specify the code pages encompassed by the font file in the 'cmap'
     /// subtable for platform 3, encoding ID 1 (Microsoft platform, Unicode BMP).
-    ul_code_page_range: [u32; 2],
+    pub(crate) ul_code_page_range: [u32; 2],
 
     // the following fields are only available for version > 1
     /// This metric specifies the distance between the baseline and the approximate height of
     /// non-ascending lowercase letters measured in FUnits.
-    sx_height: i16,
+    pub(crate) sx_height: i16,
     /// This metric specifies the distance between the baseline and the approximate height of
     /// uppercase letters measured in FUnits.
-    s_cap_height: i16,
+    pub(crate) s_cap_height: i16,
     /// This is the Unicode code point, in UTF-16 encoding, of a character that can be used for a
     /// default glyph if a requested character is not supported in the font. If the value of this
     /// field is zero, glyph ID 0 is to be used for the default character.
-    us_default_char: u16,
+    pub(crate) us_default_char: u16,
     /// This is the Unicode code point, in UTF-16 encoding, of a character that can be used as a
     /// default break character. The break character is used to separate words and justify text.
     /// Most fonts specify U+0020 SPACE as the break character.
-    us_break_char: u16,
+    pub(crate) us_break_char: u16,
     /// The maximum length of a target glyph context for any feature in this font.
-    us_max_context: u16,
+    pub(crate) us_max_context: u16,
 
     // the following fields are only available for version > 4
     /// This value is the lower value of the size range for which this font has been designed.
-    us_lower_optical_point_size: u16,
+    pub(crate) us_lower_optical_point_size: u16,
     /// This value is the upper value of the size range for which this font has been designed.
-    us_upper_optical_point_size: u16,
+    pub(crate) us_upper_optical_point_size: u16,
 }
 
 impl<'a> FontTable<'a, (), ()> for Os2Table {

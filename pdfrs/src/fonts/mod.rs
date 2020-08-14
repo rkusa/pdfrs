@@ -11,9 +11,9 @@
 #[cfg(any(feature = "afm", test))]
 pub mod afm;
 mod font;
-// mod otf;
+mod otf;
 
-// pub use self::otf::OpenTypeFont;
+pub use self::otf::OpenTypeFont;
 pub use font::{Font, FontCollection, SubsetRef};
 #[cfg(any(feature = "afm", test))]
 pub use pdfrs_afm::*;

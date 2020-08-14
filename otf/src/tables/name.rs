@@ -1,4 +1,4 @@
-use std::io::{self, Cursor, Read};
+use std::io::{self, Cursor};
 
 use super::{FontData, FontTable};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -12,6 +12,22 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 pub enum NameTable {
     Format0(Format0NameTable),
     Format1(Format1NameTable),
+}
+
+impl NameTable {
+    pub(crate) fn font_family_name(&self) -> Option<String> {
+        match self {
+            NameTable::Format0(table) => table.font_family_name(),
+            NameTable::Format1(table) => table.font_family_name(),
+        }
+    }
+
+    pub(crate) fn post_script_name(&self) -> Option<String> {
+        match self {
+            NameTable::Format0(table) => table.post_script_name(),
+            NameTable::Format1(table) => table.post_script_name(),
+        }
+    }
 }
 
 impl<'a> FontTable<'a, (), ()> for NameTable {
@@ -66,7 +82,33 @@ pub struct Format0NameTable {
     /// The name records.
     name_records: Vec<NameRecord>,
     /// Raw storage area for the actual UTF-16BE encoded string data.
-    string_data: Vec<u8>,
+    string_data: Vec<u16>,
+}
+
+impl Format0NameTable {
+    pub(crate) fn font_family_name(&self) -> Option<String> {
+        // Only searching for Windows/Unicode for now
+        // TODO: add support for other platform/encodings
+        let name_record = self
+            .name_records
+            .iter()
+            .find(|r| r.platform_id == 3 && r.encoding_id == 1 && r.name_id == 1)?;
+        let start = (name_record.offset / 2) as usize;
+        let end = start + (name_record.length / 2) as usize;
+        String::from_utf16(&self.string_data[start..end]).ok()
+    }
+
+    pub(crate) fn post_script_name(&self) -> Option<String> {
+        // Only searching for Windows/Unicode for now
+        // TODO: add support for other platform/encodings
+        let name_record = self
+            .name_records
+            .iter()
+            .find(|r| r.platform_id == 3 && r.encoding_id == 1 && r.name_id == 6)?;
+        let start = (name_record.offset / 2) as usize;
+        let end = start + (name_record.length / 2) as usize;
+        String::from_utf16(&self.string_data[start..end]).ok()
+    }
 }
 
 impl<'a> FontData<'a> for Format0NameTable {
@@ -84,7 +126,13 @@ impl<'a> FontData<'a> for Format0NameTable {
             name_records.push(NameRecord::unpack(&mut rd, ())?);
         }
         let mut string_data = Vec::new(); // TODO: guess capacity?
-        rd.read_to_end(&mut string_data)?;
+        loop {
+            match rd.read_u16::<BigEndian>() {
+                Ok(n) => string_data.push(n),
+                Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(err) => return Err(err),
+            }
+        }
         Ok(Format0NameTable {
             count,
             offset,
@@ -100,7 +148,9 @@ impl<'a> FontData<'a> for Format0NameTable {
         for record in &self.name_records {
             record.pack(&mut wr)?;
         }
-        wr.write_all(&self.string_data)?;
+        for n in &self.string_data {
+            wr.write_u16::<BigEndian>(*n)?;
+        }
         Ok(())
     }
 }
@@ -118,7 +168,33 @@ pub struct Format1NameTable {
     /// The language-tag records.
     lang_tag_records: Vec<LangTagRecord>,
     /// Raw storage area for the actual UTF-16BE encoded string data.
-    string_data: Vec<u8>,
+    string_data: Vec<u16>,
+}
+
+impl Format1NameTable {
+    pub(crate) fn font_family_name(&self) -> Option<String> {
+        // Only searching for Windows/Unicode for now
+        // TODO: add support for other platform/encodings
+        let name_record = self
+            .name_records
+            .iter()
+            .find(|r| r.platform_id == 3 && r.encoding_id == 1 && r.name_id == 1)?;
+        let start = (name_record.offset / 2) as usize;
+        let end = start + (name_record.length / 2) as usize;
+        String::from_utf16(&self.string_data[start..end]).ok()
+    }
+
+    pub(crate) fn post_script_name(&self) -> Option<String> {
+        // Only searching for Windows/Unicode for now
+        // TODO: add support for other platform/encodings
+        let name_record = self
+            .name_records
+            .iter()
+            .find(|r| r.platform_id == 3 && r.encoding_id == 1 && r.name_id == 6)?;
+        let start = (name_record.offset / 2) as usize;
+        let end = start + (name_record.length / 2) as usize;
+        String::from_utf16(&self.string_data[start..end]).ok()
+    }
 }
 
 impl<'a> FontData<'a> for Format1NameTable {
@@ -142,7 +218,13 @@ impl<'a> FontData<'a> for Format1NameTable {
             lang_tag_records.push(LangTagRecord::unpack(&mut rd, ())?);
         }
         let mut string_data = Vec::new(); // TODO: guess capacity?
-        rd.read_to_end(&mut string_data)?;
+        loop {
+            match rd.read_u16::<BigEndian>() {
+                Ok(n) => string_data.push(n),
+                Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(err) => return Err(err),
+            }
+        }
         Ok(Format1NameTable {
             count,
             offset,
@@ -164,7 +246,9 @@ impl<'a> FontData<'a> for Format1NameTable {
         for record in &self.lang_tag_records {
             record.pack(&mut wr)?;
         }
-        wr.write_all(&self.string_data)?;
+        for n in &self.string_data {
+            wr.write_u16::<BigEndian>(*n)?;
+        }
         Ok(())
     }
 }
@@ -248,19 +332,27 @@ mod test {
     use super::*;
     use crate::OffsetTable;
 
-    #[test]
-    fn test_name_table_encode_decode() {
+    fn get_name_table() -> NameTable {
         let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let name_table: NameTable = table.unpack_required_table((), &mut cursor).unwrap();
 
+        name_table
+    }
+
+    fn get_format0(name_table: &NameTable) -> &Format0NameTable {
         match &name_table {
-            NameTable::Format0(format0) => {
-                assert_eq!(format0.name_records.len(), format0.count as usize);
-            }
+            NameTable::Format0(format0) => format0,
             NameTable::Format1(_) => panic!("Expected name table format 0"),
         }
+    }
+
+    #[test]
+    fn test_name_table_encode_decode() {
+        let name_table = get_name_table();
+        let format0 = get_format0(&name_table);
+        assert_eq!(format0.name_records.len(), format0.count as usize);
 
         // re-pack and compare
         let mut buffer = Vec::new();
@@ -269,5 +361,17 @@ mod test {
             NameTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             name_table
         );
+    }
+
+    #[test]
+    fn test_name_table_font_family_name() {
+        let name_table = get_name_table();
+        assert_eq!(name_table.font_family_name().as_deref(), Some("Iosevka"));
+    }
+
+    #[test]
+    fn test_name_table_post_script_name() {
+        let name_table = get_name_table();
+        assert_eq!(name_table.post_script_name().as_deref(), Some("Iosevka"));
     }
 }

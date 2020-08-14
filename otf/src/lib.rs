@@ -4,11 +4,13 @@ mod utils;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::{self, Cursor};
-use std::rc::Rc;
+use std::sync::Arc;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use futures_util::io::{AsyncWrite, AsyncWriteExt};
 use tables::offset::{OffsetTable, SfntVersion, TableRecord};
-use tables::{FontData, FontTable, Glyph};
+pub use tables::Glyph;
+use tables::{FontData, FontTable};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct OpenTypeFont {
@@ -29,7 +31,7 @@ pub struct OpenTypeFont {
 struct CmapSubtable {
     platform_id: u16,
     encoding_id: u16,
-    subtable: Rc<tables::cmap::Subtable>,
+    subtable: Arc<tables::cmap::Subtable>,
 }
 
 impl OpenTypeFont {
@@ -59,6 +61,79 @@ impl OpenTypeFont {
         })
     }
 
+    pub fn font_family_name(&self) -> Option<String> {
+        self.name_table.font_family_name()
+    }
+
+    pub fn post_script_name(&self) -> Option<String> {
+        self.name_table.post_script_name()
+    }
+
+    pub fn is_fixed_pitch(&self) -> bool {
+        self.post_table.is_fixed_path > 0
+    }
+
+    // TODO: re-check
+    pub fn is_serif(&self) -> bool {
+        matches!(self.os2_table.s_family_class, 1..=7)
+    }
+
+    // TODO: re-check
+    pub fn is_script(&self) -> bool {
+        self.os2_table.s_family_class == 10
+    }
+
+    // TODO: re-check
+    pub fn is_italic(&self) -> bool {
+        self.post_table.italic_angle != 0
+    }
+
+    pub fn italic_angle(&self) -> i32 {
+        self.post_table.italic_angle
+    }
+
+    pub fn units_per_em(&self) -> u16 {
+        self.head_table.units_per_em
+    }
+
+    pub fn bbox(&self) -> [i16; 4] {
+        [
+            self.head_table.x_min,
+            self.head_table.y_min,
+            self.head_table.x_max,
+            self.head_table.y_max,
+        ]
+    }
+
+    pub fn ascent(&self) -> i16 {
+        self.os2_table.s_typo_ascender
+    }
+
+    pub fn descent(&self) -> i16 {
+        self.os2_table.s_typo_descender
+    }
+
+    pub fn line_gap(&self) -> i16 {
+        self.hhea_table.line_gap
+    }
+
+    pub fn cap_height(&self) -> i16 {
+        self.os2_table.s_cap_height
+    }
+
+    pub fn x_height(&self) -> i16 {
+        self.os2_table.sx_height
+    }
+
+    pub fn char_width(&self, ch: char) -> u16 {
+        let ix = self.glyph_id(u32::from(ch)).unwrap_or(0);
+        self.hmtx_table
+            .h_metrics
+            .get(ix as usize)
+            .map(|m| m.advance_width)
+            .unwrap_or(0)
+    }
+
     // TODO: return u32?
     pub fn glyph_id(&self, codepoint: u32) -> Option<u16> {
         self.cmap_table
@@ -67,14 +142,13 @@ impl OpenTypeFont {
             .and_then(|record| record.subtable.glyph_id(codepoint))
     }
 
-    pub fn subset(&self, text: &str) -> Self {
+    pub fn subset(&self, chars: impl Iterator<Item = char>) -> Self {
         let subtable = match self.cmap_table.encoding_records.first() {
             Some(r) => r.subtable.clone(),
             // TODO: error instead?
             None => return self.clone(),
         };
-        let glyphs = text
-            .chars()
+        let glyphs = chars
             .filter_map(|c| {
                 subtable
                     .glyph_id(u32::from(c))
@@ -92,6 +166,10 @@ impl OpenTypeFont {
             .map(|(_, g)| g)
             .collect::<Vec<_>>();
 
+        self.subset_from_glyphs(&glyphs)
+    }
+
+    pub fn subset_from_glyphs(&self, glyphs: &[Glyph]) -> Self {
         let glyphs = self.glyf_table.expand_composite_glyphs(&glyphs);
 
         let os2_table = self.os2_table.subset(&glyphs, ()).into_owned();
@@ -127,7 +205,7 @@ impl OpenTypeFont {
     }
 
     /// Note: currently skips all other tables of the font that are not known to the library.
-    pub fn to_writer(&self, wr: impl io::Write) -> Result<(), io::Error> {
+    pub fn to_vec(&self) -> Result<(Vec<u8>, Vec<u8>), io::Error> {
         let mut writer = FontWriter::new(10);
         writer.pack(&self.os2_table)?;
         writer.pack(&self.cmap_table)?;
@@ -140,7 +218,20 @@ impl OpenTypeFont {
         writer.pack(&self.maxp_table)?;
         writer.pack(&self.name_table)?;
         writer.pack(&self.post_table)?;
-        writer.finish(self.sfnt_version, check_sum_adjustment_offset, wr)?;
+        writer.finish(self.sfnt_version, check_sum_adjustment_offset)
+    }
+
+    pub fn to_writer(&self, mut wr: impl io::Write) -> Result<(), io::Error> {
+        let (a, b) = self.to_vec()?;
+        wr.write_all(&a)?;
+        wr.write_all(&b)?;
+        Ok(())
+    }
+
+    pub async fn to_async_writer(&self, mut wr: impl AsyncWrite + Unpin) -> Result<(), io::Error> {
+        let (a, b) = self.to_vec()?;
+        wr.write_all(&a).await?;
+        wr.write_all(&b).await?;
 
         Ok(())
     }
@@ -202,8 +293,7 @@ impl FontWriter {
         mut self,
         sfnt_version: SfntVersion,
         check_sum_adjustment_offset: usize,
-        mut wr: impl io::Write,
-    ) -> Result<(), io::Error> {
+    ) -> Result<(Vec<u8>, Vec<u8>), io::Error> {
         let num_tables = u16::try_from(self.tables.len()).ok().unwrap_or(u16::MAX);
         let x = 2u16.pow((num_tables as f32).log2() as u32);
         let search_range = x * 16;
@@ -233,10 +323,7 @@ impl FontWriter {
         (&mut self.buffer[check_sum_adjustment_offset..])
             .write_u32::<BigEndian>(check_sum_adjustment)?;
 
-        wr.write_all(&offset_data)?;
-        wr.write_all(&self.buffer)?;
-
-        Ok(())
+        Ok((offset_data, self.buffer))
     }
 }
 
@@ -277,7 +364,7 @@ mod test {
     fn test_reparse_subset() {
         let data = include_bytes!("../tests/fonts/Iosevka/iosevka-regular.ttf");
         let font = OpenTypeFont::from_slice(&data[..]).unwrap();
-        let subset = font.subset("abA");
+        let subset = font.subset("abA".chars());
 
         let mut data = Vec::new();
         subset.to_writer(&mut data).unwrap();

@@ -243,7 +243,7 @@ impl<'a> FontData<'a> for Format4 {
 
 #[cfg(test)]
 mod test {
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     use super::*;
     use crate::tables::cmap::{CmapTable, Subtable};
@@ -261,7 +261,7 @@ mod test {
             .find(|r| r.platform_id == 0 && r.encoding_id == 3)
             .unwrap();
 
-        match Rc::try_unwrap(record.subtable).unwrap() {
+        match Arc::try_unwrap(record.subtable).unwrap() {
             Subtable::Format4(subtable) => subtable,
             _ => panic!("Expected format 4 subtable"),
         }

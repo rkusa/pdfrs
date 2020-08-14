@@ -149,9 +149,9 @@ where
 
         // Write fonts
         for (font_ref, subsets) in subsets {
-            for (_, id) in subsets {
-                font_collection
-                    .write_objects(font_ref, id, &mut doc)
+            for (subset_ref, id) in subsets {
+                doc = font_collection
+                    .write_objects(font_ref, subset_ref, id, doc)
                     .await?;
             }
         }

@@ -9,32 +9,32 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// - https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6post.html
 #[derive(Debug, PartialEq, Clone)]
 pub struct PostTable {
-    major_version: u16,
-    minor_version: u16,
+    pub(crate) major_version: u16,
+    pub(crate) minor_version: u16,
     /// Italic angle in counter-clockwise degrees from the vertical. Zero for upright text, negative
     /// for text that leans to the right (forward).
     // TODO: type fixed
-    italic_angle: i32,
+    pub(crate) italic_angle: i32,
     /// This is the suggested distance of the top of the underline from the baseline (negative
     /// values indicate below baseline).
-    underline_position: i16,
+    pub(crate) underline_position: i16,
     /// Suggested values for the underline thickness.
-    underline_thickness: i16,
+    pub(crate) underline_thickness: i16,
     /// Set to 0 if the font is proportionally spaced, non-zero if the font is not proportionally
     /// spaced (i.e. monospaced).
-    is_fixed_path: u32,
+    pub(crate) is_fixed_path: u32,
     /// Minimum memory usage when an OpenType font is downloaded.
-    min_mem_type42: u32,
+    pub(crate) min_mem_type42: u32,
     /// Maximum memory usage when an OpenType font is downloaded.
-    max_mem_type42: u32,
+    pub(crate) max_mem_type42: u32,
     /// Minimum memory usage when an OpenType font is downloaded as a Type 1 font.
-    min_mem_type1: u32,
+    pub(crate) min_mem_type1: u32,
     /// Maximum memory usage when an OpenType font is downloaded as a Type 1 font.
-    max_mem_type1: u32,
+    pub(crate) max_mem_type1: u32,
 
     /// Additional content for format 2 and format 4 post tables.
     // TODO?: Actually parse the content?
-    addition: Vec<u8>,
+    pub(crate) addition: Vec<u8>,
 }
 
 impl<'a> FontTable<'a, (), ()> for PostTable {

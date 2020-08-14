@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::io::{self, Cursor};
 use std::mem;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use super::{FontData, FontTable, Glyph};
 use crate::utils::limit_read::LimitRead;
@@ -81,7 +81,7 @@ impl<'a> FontData<'a> for CmapTable {
             let existing_subtable = records
                 .iter()
                 .find(|(offset, _)| raw_record.offset == *offset)
-                .map(|(_, subtable)| Rc::clone(&subtable.subtable));
+                .map(|(_, subtable)| Arc::clone(&subtable.subtable));
             if let Some(subtable) = existing_subtable {
                 records.push((
                     raw_record.offset,
@@ -101,7 +101,7 @@ impl<'a> FontData<'a> for CmapTable {
                 EncodingRecord {
                     platform_id: raw_record.platform_id,
                     encoding_id: raw_record.encoding_id,
-                    subtable: Rc::new(subtable),
+                    subtable: Arc::new(subtable),
                 },
             ));
         }
@@ -123,7 +123,7 @@ impl<'a> FontData<'a> for CmapTable {
         for subtable in &self.encoding_records {
             let prev_offset = written_subtables
                 .iter()
-                .find(|(_, other)| Rc::ptr_eq(other, &subtable.subtable))
+                .find(|(_, other)| Arc::ptr_eq(other, &subtable.subtable))
                 .map(|(offset, _)| *offset);
             if let Some(prev_offset) = prev_offset {
                 raw_recods.push(RawEncodingRecord {
@@ -160,17 +160,18 @@ impl<'a> FontData<'a> for CmapTable {
     where
         Self: Clone,
     {
-        let mut subsetted_subtables: Vec<(Rc<Subtable>, Rc<Subtable>)> = Vec::new();
+        let mut subsetted_subtables: Vec<(Arc<Subtable>, Arc<Subtable>)> = Vec::new();
         let encoding_records = self
             .encoding_records
             .iter()
             .map(|entry| {
                 let new_subtable = subsetted_subtables
                     .iter()
-                    .find(|(prev, _)| Rc::ptr_eq(prev, &entry.subtable))
+                    .find(|(prev, _)| Arc::ptr_eq(prev, &entry.subtable))
                     .map(|(_, new_subtable)| new_subtable.clone())
                     .unwrap_or_else(|| {
-                        let new_subtable = Rc::new(entry.subtable.subset(&glyphs, ()).into_owned());
+                        let new_subtable =
+                            Arc::new(entry.subtable.subset(&glyphs, ()).into_owned());
                         subsetted_subtables.push((entry.subtable.clone(), new_subtable.clone()));
                         new_subtable
                     });
@@ -201,7 +202,7 @@ pub struct RawEncodingRecord {
 pub struct EncodingRecord {
     pub(crate) platform_id: u16,
     pub(crate) encoding_id: u16,
-    pub(crate) subtable: Rc<Subtable>,
+    pub(crate) subtable: Arc<Subtable>,
 }
 
 impl<'a> FontData<'a> for RawEncodingRecord {

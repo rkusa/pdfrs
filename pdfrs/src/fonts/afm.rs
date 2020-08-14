@@ -33,22 +33,22 @@ impl<'a> FontCollection for &'a pdfrs_afm::AfmFont {
 
     async fn write_objects<W: Write + Unpin>(
         &self,
-        font: Self::FontRef,
+        _font: Self::FontRef,
+        _subset: SubsetRef,
         obj_id: ObjectId,
-        doc: &mut DocWriter<W>,
-    ) -> Result<(), serde_pdf::Error> {
-        let font = self.font(font);
+        mut doc: DocWriter<W>,
+    ) -> Result<DocWriter<W>, serde_pdf::Error> {
         let font_obj = Object::new(
             obj_id.id(),
             obj_id.rev(),
             FontObject {
                 subtype: FontType::Type1,
-                base_font: font.base_name(),
+                base_font: self.base_name(),
                 encoding: FontEncoding::WinAnsiEncoding,
             },
         );
         doc.write_object(font_obj).await?;
-        Ok(())
+        Ok(doc)
     }
 }
 

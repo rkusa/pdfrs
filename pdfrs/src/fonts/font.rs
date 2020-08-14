@@ -12,9 +12,10 @@ pub trait FontCollection {
     async fn write_objects<W: Write + Unpin>(
         &self,
         font: Self::FontRef,
+        subset: SubsetRef,
         obj_id: ObjectId,
-        doc: &mut DocWriter<W>,
-    ) -> Result<(), serde_pdf::Error>;
+        doc: DocWriter<W>,
+    ) -> Result<DocWriter<W>, serde_pdf::Error>;
 }
 
 pub trait Font {
