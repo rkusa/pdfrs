@@ -205,31 +205,52 @@ impl OpenTypeFont {
     }
 
     /// Note: currently skips all other tables of the font that are not known to the library.
-    pub fn to_vec(&self) -> Result<(Vec<u8>, Vec<u8>), io::Error> {
-        let mut writer = FontWriter::new(10);
-        writer.pack(&self.os2_table)?;
-        writer.pack(&self.cmap_table)?;
-        writer.pack(&self.glyf_table)?;
-        let check_sum_adjustment_offset = writer.offset() + 8;
-        writer.pack(&self.head_table)?;
-        writer.pack(&self.hhea_table)?;
-        writer.pack(&self.hmtx_table)?;
-        writer.pack(&self.loca_table)?;
-        writer.pack(&self.maxp_table)?;
-        writer.pack(&self.name_table)?;
-        writer.pack(&self.post_table)?;
-        writer.finish(self.sfnt_version, check_sum_adjustment_offset)
+    pub fn to_vec(&self, pdf_subset: bool) -> Result<(Vec<u8>, Vec<u8>), io::Error> {
+        if pdf_subset {
+            // PDF subsets only require the following tables: "glyf", "head", "hhea", "hmtx", "loca",
+            // and "maxp". The "cvt " (notice the trailing SPACE), "fpgm", and "prep" tables shall also
+            // be included if they are required by the font instructions.
+
+            let mut writer = FontWriter::new(7);
+            writer.pack(&self.cmap_table)?; // also needed if not provided via a PDF CMAP
+            writer.pack(&self.glyf_table)?;
+            let check_sum_adjustment_offset = writer.offset() + 8;
+            writer.pack(&self.head_table)?;
+            writer.pack(&self.hhea_table)?;
+            writer.pack(&self.hmtx_table)?;
+            writer.pack(&self.loca_table)?;
+            writer.pack(&self.maxp_table)?;
+            writer.finish(self.sfnt_version, check_sum_adjustment_offset)
+        } else {
+            let mut writer = FontWriter::new(10);
+            writer.pack(&self.os2_table)?;
+            writer.pack(&self.cmap_table)?;
+            writer.pack(&self.glyf_table)?;
+            let check_sum_adjustment_offset = writer.offset() + 8;
+            writer.pack(&self.head_table)?;
+            writer.pack(&self.hhea_table)?;
+            writer.pack(&self.hmtx_table)?;
+            writer.pack(&self.loca_table)?;
+            writer.pack(&self.maxp_table)?;
+            writer.pack(&self.name_table)?;
+            writer.pack(&self.post_table)?;
+            writer.finish(self.sfnt_version, check_sum_adjustment_offset)
+        }
     }
 
-    pub fn to_writer(&self, mut wr: impl io::Write) -> Result<(), io::Error> {
-        let (a, b) = self.to_vec()?;
+    pub fn to_writer(&self, mut wr: impl io::Write, pdf_subset: bool) -> Result<(), io::Error> {
+        let (a, b) = self.to_vec(pdf_subset)?;
         wr.write_all(&a)?;
         wr.write_all(&b)?;
         Ok(())
     }
 
-    pub async fn to_async_writer(&self, mut wr: impl AsyncWrite + Unpin) -> Result<(), io::Error> {
-        let (a, b) = self.to_vec()?;
+    pub async fn to_async_writer(
+        &self,
+        mut wr: impl AsyncWrite + Unpin,
+        pdf_subset: bool,
+    ) -> Result<(), io::Error> {
+        let (a, b) = self.to_vec(pdf_subset)?;
         wr.write_all(&a).await?;
         wr.write_all(&b).await?;
 
@@ -297,6 +318,17 @@ impl FontWriter {
         sfnt_version: SfntVersion,
         check_sum_adjustment_offset: usize,
     ) -> Result<(Vec<u8>, Vec<u8>), io::Error> {
+        if self.tables.len() != self.tables.capacity() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!(
+                    "Expected {} tables, but ony wrote {} tables",
+                    self.tables.capacity(),
+                    self.tables.len()
+                ),
+            ));
+        }
+
         let num_tables = u16::try_from(self.tables.len()).ok().unwrap_or(u16::MAX);
         let x = 2u16.pow((num_tables as f32).log2() as u32);
         let search_range = x * 16;
@@ -349,7 +381,7 @@ mod test {
         let font = OpenTypeFont::from_slice(&data[..]).unwrap();
 
         let mut data = Vec::new();
-        font.to_writer(&mut data).unwrap();
+        font.to_writer(&mut data, false).unwrap();
         let mut rewritten_font = OpenTypeFont::from_slice(data).unwrap();
 
         assert_ne!(
@@ -370,7 +402,7 @@ mod test {
         let subset = font.subset("abA".chars());
 
         let mut data = Vec::new();
-        subset.to_writer(&mut data).unwrap();
+        subset.to_writer(&mut data, false).unwrap();
         let mut rewritten_subset = OpenTypeFont::from_slice(data).unwrap();
 
         assert_ne!(

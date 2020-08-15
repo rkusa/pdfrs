@@ -9,7 +9,7 @@ fn main() -> Result<(), io::Error> {
     let subset = font.subset("Hello World".chars());
 
     let file = File::create("iosevka-regular-subset.ttf")?;
-    subset.to_writer(file)?;
+    subset.to_writer(file, true)?;
 
     Ok(())
 }

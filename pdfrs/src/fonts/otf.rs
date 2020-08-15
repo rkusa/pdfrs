@@ -140,7 +140,7 @@ impl FontCollection for OpenTypeFont {
 
         let mut font_file = Stream::start(doc, true, true).await?;
         let font_file_ref = font_file.to_reference();
-        new_font.to_async_writer(&mut font_file).await?;
+        new_font.to_async_writer(&mut font_file, true).await?;
         let mut doc = font_file.end().await?;
 
         let mut flags = 0;
