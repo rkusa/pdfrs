@@ -1,5 +1,5 @@
 use std::convert::AsRef;
-use std::io::{self, Cursor};
+use std::io::{self, Cursor, Read};
 
 pub struct LimitRead<T: io::Read> {
     inner: T,
@@ -11,12 +11,24 @@ impl<T> LimitRead<T>
 where
     T: io::Read,
 {
+    #[allow(unused)]
     pub fn new(inner: T, limit: usize) -> Self {
         Self {
             inner,
             limit,
             already_read: 0,
         }
+    }
+
+    pub fn discard(mut self) -> Result<(), io::Error> {
+        let n = self.limit - self.already_read;
+        if n == 0 {
+            return Ok(());
+        }
+
+        let mut buf = vec![0; n];
+        self.read_exact(&mut buf[..])?;
+        Ok(())
     }
 }
 
@@ -40,7 +52,7 @@ where
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.already_read == self.limit {
-            return Ok(0);
+            return Err(io::ErrorKind::UnexpectedEof.into());
         }
 
         let cap = buf.len().min(self.limit - self.already_read);
@@ -74,6 +86,9 @@ mod test {
         assert_eq!((rd.read(&mut buf).unwrap(), &buf), (2, b"fo"));
         assert_eq!((rd.read(&mut buf).unwrap(), &buf), (2, b"ob"));
         assert_eq!((rd.read(&mut buf).unwrap(), &buf[..1]), (1, &b"a"[..]));
-        assert_eq!(rd.read(&mut buf).unwrap(), 0);
+        assert_eq!(
+            rd.read(&mut buf).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
     }
 }

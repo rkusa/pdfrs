@@ -78,7 +78,7 @@ impl Font for OpenTypeFont {
                     b')' => buf.extend(b"\\)"),
                     b => buf.push(b),
                 }
-                len = i + 1;
+                len = i + ch.len_utf8();
             } else {
                 break;
             }
@@ -169,7 +169,7 @@ impl FontCollection for OpenTypeFont {
                 last_char: subset.last_char(),
                 widths: subset
                     .chars()
-                    .map(|ch| ch.map(|(_, ch)| new_font.char_width(ch)).unwrap_or(0))
+                    .map(|ch| ch.map(|(_, ch)| self.font.char_width(ch)).unwrap_or(0))
                     .collect(),
                 font_descriptor: FontDescriptor {
                     font_name: &self.post_script_name,
@@ -265,7 +265,7 @@ impl UnicodeSubset {
     }
 
     fn first_char(&self) -> u8 {
-        32
+        33
     }
 
     fn last_char(&self) -> u8 {

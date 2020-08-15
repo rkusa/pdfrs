@@ -275,8 +275,11 @@ impl FontWriter {
         let start = self.buffer.len();
         table.pack(&mut self.buffer)?;
         let len = self.buffer.len() - start;
-        self.buffer
-            .resize(self.buffer.len() + self.buffer.len() % 4, 0); // align to 4 bytes
+        if self.buffer.len() % 4 != 0 {
+            // align to 4 bytes
+            let new_len = self.buffer.len() + (4 - (self.buffer.len() % 4));
+            self.buffer.resize(new_len, 0);
+        }
         self.tables.push(TableRecord {
             tag: T::name().to_string(),
             check_sum: check_sum(&self.buffer[start..]),

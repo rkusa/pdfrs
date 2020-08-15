@@ -118,7 +118,7 @@ impl<W: AsyncWrite + Unpin> Stream<W> {
 
     /// Ends the PDF stream, which involves writing the stream's and corresponding object's end
     /// markers and the stream's length object.
-    pub async fn end(mut self) -> Result<DocWriter<W>, serde_pdf::Error> {
+    pub async fn end(mut self) -> Result<DocWriter<W>, io::Error> {
         self.flush().await?;
         let len = self.wr.len() - self.doc_len_before;
         let mut wr = self.wr.into_inner();
@@ -126,11 +126,15 @@ impl<W: AsyncWrite + Unpin> Stream<W> {
 
         wr.add_xref(self.len_obj_id.id());
         let len_obj = Object::new(self.len_obj_id.id(), self.len_obj_id.rev(), len);
-        wr.write_object(len_obj).await?;
+        to_async_writer(&mut wr, &len_obj)
+            .await
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
         if let Some(len1_obj_id) = self.len1_obj_id {
             let len1_obj = Object::new(len1_obj_id.id(), len1_obj_id.rev(), self.len1);
-            wr.write_object(len1_obj).await?;
+            to_async_writer(&mut wr, &len1_obj)
+                .await
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
         }
 
         Ok(wr)

@@ -27,7 +27,7 @@ pub struct OffsetTable {
 }
 
 impl OffsetTable {
-    fn get_table_record(&self, tag: &str) -> Option<&TableRecord> {
+    pub fn get_table_record(&self, tag: &str) -> Option<&TableRecord> {
         self.tables
             .binary_search_by(|r| r.tag.as_str().cmp(tag))
             .ok()

@@ -35,6 +35,5 @@ fn iosevka_regular() -> impl FontCollection {
 
 #[pdf_test("./fixtures/basic_opentype_text.pdf", iosevka_regular)]
 async fn basic_opentype_text(doc: &mut Document<_, File>) {
-    doc.text("Hello World", None).await.unwrap();
-    // doc.text("Hello World / Ⓗⓔⓛⓛⓞ Ⓦⓞⓡⓛⓓ", None).await.unwrap();
+    doc.text("Hello World / Ⓗⓔⓛⓛⓞ Ⓦⓞⓡⓛⓓ", None).await.unwrap();
 }

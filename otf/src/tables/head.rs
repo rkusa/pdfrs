@@ -181,7 +181,7 @@ impl<'a> FontData<'a> for HeadTable {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tables::glyf::GlyphData;
+    use crate::tables::glyf::{GlyphData, GlyphDescription};
     use crate::OffsetTable;
 
     #[test]
@@ -229,8 +229,7 @@ mod test {
             y_min: 2,
             x_max: 3,
             y_max: 4,
-            description: Vec::new(),
-            composite_glyph_index: None,
+            description: GlyphDescription::Simple(Vec::new()),
         };
         let g4 = GlyphData {
             number_of_contours: 2,
@@ -238,8 +237,7 @@ mod test {
             y_min: 3,
             x_max: 2,
             y_max: 1,
-            description: Vec::new(),
-            composite_glyph_index: None,
+            description: GlyphDescription::Simple(Vec::new()),
         };
         let glyf = GlyfTable {
             glyphs: vec![None, Some(g2), None, Some(g4), None],

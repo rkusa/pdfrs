@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::io::{self, Cursor};
-use std::iter;
 
 use super::hhea::HheaTable;
 use super::maxp::MaxpTable;
@@ -84,9 +83,9 @@ impl<'a> FontData<'a> for HmtxTable {
     where
         Self: Clone,
     {
-        // Always add default glyph 0
-        let (h_metrics, left_side_bearings) = iter::once(0)
-            .chain(glyphs.iter().map(|g| g.index as usize))
+        let (h_metrics, left_side_bearings) = glyphs
+            .iter()
+            .map(|g| g.index as usize)
             .partition::<Vec<usize>, _>(|ix| *ix < self.h_metrics.len());
         let h_metrics = h_metrics
             .into_iter()
@@ -185,7 +184,7 @@ mod test {
 
         let hmtx = HmtxTable {
             h_metrics: vec![
-                metric1.clone(), // glyph 0
+                metric1,         // glyph 0
                 metric2.clone(), // glyph 1
                 metric3,         // glyph 2
                 metric4.clone(), // glyph 3
@@ -202,7 +201,7 @@ mod test {
             hmtx.subset(&[Glyph::new(1), Glyph::new(3), Glyph::new(6)], ())
                 .as_ref(),
             &HmtxTable {
-                h_metrics: vec![metric1, metric2, metric4],
+                h_metrics: vec![metric2, metric4],
                 left_side_bearings: vec![7]
             }
         );

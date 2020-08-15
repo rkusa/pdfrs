@@ -80,8 +80,6 @@ impl<'a> FontData<'a> for Format12 {
             .iter()
             .enumerate()
             .flat_map(|(new_index, g)| {
-                // skip reserved index 0 (reserved for default glyph)
-                let new_index = new_index + 1;
                 g.code_points.iter().filter_map(move |c| {
                     u32::try_from(new_index)
                         .ok()
@@ -237,7 +235,7 @@ mod test {
         for (i, g) in glyphs.iter().enumerate() {
             for c in &g.code_points {
                 // i + 1, since 0 should be the missing glyph
-                assert_eq!(subset.glyph_id(*c), Some((i + 1) as u16));
+                assert_eq!(subset.glyph_id(*c), Some(i as u16));
             }
         }
 
