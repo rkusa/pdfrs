@@ -1,5 +1,5 @@
 
 **Features:**
-- Parsing and writing of OpenType fonts (only single fonts for now, collections are not yet supported).
-- Supported font tables: `cmap` (format 4 and 12 only), `head`, `hhea`, `hmtx`, `maxp`, `name`, `os2`, `post`.
-- Font subsetting (very basic, only rewrittes ne glyphs but not other values like average mesurements or the like).
+- Parsing and writing of OpenType TTF fonts (Collections, CFF fonts and Web fonts are not yet supported).
+- Supported font tables: `OS/2`, `cmap` (format 4 and 12 only), `glyf`, `head`, `hhea`, `hmtx`, `loca`, `maxp`, `name`,  `post`.
+- Basic font subsetting.
