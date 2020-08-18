@@ -66,9 +66,7 @@ impl<W: AsyncWrite + Unpin> Stream<W> {
         let id = wr.reserve_object_id();
         let len_obj_id = wr.reserve_object_id();
         let len1_obj_id = if compresse && with_len1 {
-            let len1_id = wr.reserve_object_id();
-            wr.add_xref(len1_id.id());
-            Some(len1_id)
+            Some(wr.reserve_object_id())
         } else {
             None
         };
@@ -133,6 +131,7 @@ impl<W: AsyncWrite + Unpin> Stream<W> {
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
         if let Some(len1_obj_id) = self.len1_obj_id {
+            wr.add_xref(len1_obj_id.id());
             let len1_obj = Object::new(len1_obj_id.id(), len1_obj_id.rev(), self.len1);
             to_async_writer(&mut wr, &len1_obj)
                 .await
