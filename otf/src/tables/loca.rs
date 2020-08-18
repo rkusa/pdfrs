@@ -29,7 +29,7 @@ pub(crate) enum Format {
     Long,
 }
 
-impl<'a> FontTable<'a, (&'a HeadTable, &'a MaxpTable), &'a GlyfTable> for LocaTable {
+impl<'a> FontTable<'a, (&'a HeadTable, &'a MaxpTable), &'a GlyfTable, &'a GlyfTable> for LocaTable {
     fn name() -> &'static str {
         "loca"
     }
@@ -37,6 +37,7 @@ impl<'a> FontTable<'a, (&'a HeadTable, &'a MaxpTable), &'a GlyfTable> for LocaTa
 
 impl<'a> FontData<'a> for LocaTable {
     type UnpackDep = (&'a HeadTable, &'a MaxpTable);
+    type PackDep = &'a GlyfTable;
     type SubsetDep = &'a GlyfTable;
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -63,11 +64,17 @@ impl<'a> FontData<'a> for LocaTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
-        for offset in &self.offsets {
+    fn pack<W: io::Write>(&self, wr: &mut W, glyf: Self::PackDep) -> Result<(), io::Error> {
+        let offsets = iter::once(0).chain(glyf.glyphs.iter().scan(0, |offset, data| {
+            if let Some(data) = data {
+                *offset += data.size_in_byte();
+            }
+            u32::try_from(*offset).ok()
+        }));
+        for offset in offsets {
             match self.format {
                 Format::Short => wr.write_u16::<BigEndian>((offset / 2) as u16)?,
-                Format::Long => wr.write_u32::<BigEndian>(*offset)?,
+                Format::Long => wr.write_u32::<BigEndian>(offset)?,
             }
         }
         Ok(())
@@ -94,18 +101,21 @@ impl<'a> FontData<'a> for LocaTable {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tables::glyf::{GlyphData, GlyphDescription};
+    use crate::tables::glyf::{GlyfTable, GlyphData, GlyphDescription};
     use crate::OffsetTable;
 
     #[test]
     fn test_loca_table_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let head_table: HeadTable = table.unpack_required_table((), &mut cursor).unwrap();
         let maxp_table: MaxpTable = table.unpack_required_table((), &mut cursor).unwrap();
         let loca_table: LocaTable = table
             .unpack_required_table((&head_table, &maxp_table), &mut cursor)
+            .unwrap();
+        let glyf_table: GlyfTable = table
+            .unpack_required_table(&loca_table, &mut cursor)
             .unwrap();
 
         assert_eq!(
@@ -123,7 +133,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        loca_table.pack(&mut buffer).unwrap();
+        loca_table.pack(&mut buffer, &glyf_table).unwrap();
         assert_eq!(
             LocaTable::unpack(&mut Cursor::new(&buffer[..]), (&head_table, &maxp_table)).unwrap(),
             loca_table
@@ -168,8 +178,7 @@ mod test {
         assert_eq!(
             subset.as_ref(),
             &LocaTable {
-                // Note: values get aligned to a multiple of 4
-                offsets: vec![0, 16, 36, 36, 36, 68, 68],
+                offsets: vec![0, 15, 35, 35, 35, 65, 65],
                 format: Format::Long,
             }
         )

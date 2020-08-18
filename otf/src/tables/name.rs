@@ -30,7 +30,7 @@ impl NameTable {
     }
 }
 
-impl<'a> FontTable<'a, (), ()> for NameTable {
+impl<'a> FontTable<'a, (), (), ()> for NameTable {
     fn name() -> &'static str {
         "name"
     }
@@ -38,6 +38,7 @@ impl<'a> FontTable<'a, (), ()> for NameTable {
 
 impl<'a> FontData<'a> for NameTable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -55,17 +56,17 @@ impl<'a> FontData<'a> for NameTable {
         }
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         match self {
             NameTable::Format0(table) => {
                 // format
                 wr.write_u16::<BigEndian>(0)?;
-                table.pack(&mut wr)?;
+                table.pack(&mut wr, ())?;
             }
             NameTable::Format1(table) => {
                 // format
                 wr.write_u16::<BigEndian>(1)?;
-                table.pack(&mut wr)?;
+                table.pack(&mut wr, ())?;
             }
         }
 
@@ -113,6 +114,7 @@ impl Format0NameTable {
 
 impl<'a> FontData<'a> for Format0NameTable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -141,12 +143,12 @@ impl<'a> FontData<'a> for Format0NameTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         // TODO: update count, offset and string_data based on name_records
         wr.write_u16::<BigEndian>(self.count)?;
         wr.write_u16::<BigEndian>(self.offset)?;
         for record in &self.name_records {
-            record.pack(&mut wr)?;
+            record.pack(&mut wr, ())?;
         }
         for n in &self.string_data {
             wr.write_u16::<BigEndian>(*n)?;
@@ -199,6 +201,7 @@ impl Format1NameTable {
 
 impl<'a> FontData<'a> for Format1NameTable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -235,16 +238,16 @@ impl<'a> FontData<'a> for Format1NameTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         // TODO: update count, offset and string_data based on name_records (same for lang tags)
         wr.write_u16::<BigEndian>(self.count)?;
         wr.write_u16::<BigEndian>(self.offset)?;
         for record in &self.name_records {
-            record.pack(&mut wr)?;
+            record.pack(&mut wr, ())?;
         }
         wr.write_u16::<BigEndian>(self.lang_tag_count)?;
         for record in &self.lang_tag_records {
-            record.pack(&mut wr)?;
+            record.pack(&mut wr, ())?;
         }
         for n in &self.string_data {
             wr.write_u16::<BigEndian>(*n)?;
@@ -271,6 +274,7 @@ pub struct NameRecord {
 
 impl<'a> FontData<'a> for NameRecord {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -287,7 +291,7 @@ impl<'a> FontData<'a> for NameRecord {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.platform_id)?;
         wr.write_u16::<BigEndian>(self.encoding_id)?;
         wr.write_u16::<BigEndian>(self.language_id)?;
@@ -308,6 +312,7 @@ pub struct LangTagRecord {
 
 impl<'a> FontData<'a> for LangTagRecord {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -320,7 +325,7 @@ impl<'a> FontData<'a> for LangTagRecord {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.length)?;
         wr.write_u16::<BigEndian>(self.offset)?;
         Ok(())
@@ -333,7 +338,7 @@ mod test {
     use crate::OffsetTable;
 
     fn get_name_table() -> NameTable {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let name_table: NameTable = table.unpack_required_table((), &mut cursor).unwrap();
@@ -356,7 +361,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        name_table.pack(&mut buffer).unwrap();
+        name_table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             NameTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             name_table

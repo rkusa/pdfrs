@@ -37,7 +37,7 @@ pub struct PostTable {
     pub(crate) addition: Vec<u8>,
 }
 
-impl<'a> FontTable<'a, (), ()> for PostTable {
+impl<'a> FontTable<'a, (), (), ()> for PostTable {
     fn name() -> &'static str {
         "post"
     }
@@ -45,6 +45,7 @@ impl<'a> FontTable<'a, (), ()> for PostTable {
 
 impl<'a> FontData<'a> for PostTable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -79,7 +80,7 @@ impl<'a> FontData<'a> for PostTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.major_version)?;
         wr.write_u16::<BigEndian>(self.minor_version)?;
         wr.write_i32::<BigEndian>(self.italic_angle)?;
@@ -104,7 +105,7 @@ mod test {
 
     #[test]
     fn test_post_table_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let post_table: PostTable = table.unpack_required_table((), &mut cursor).unwrap();
@@ -122,7 +123,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        post_table.pack(&mut buffer).unwrap();
+        post_table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             PostTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             post_table

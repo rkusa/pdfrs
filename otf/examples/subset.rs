@@ -4,7 +4,7 @@ use std::io;
 use otf::OpenTypeFont;
 
 fn main() -> Result<(), io::Error> {
-    let data = include_bytes!("../tests/fonts/Iosevka/iosevka-regular.ttf");
+    let data = include_bytes!("../../fonts/Iosevka/iosevka-regular.ttf");
     let font = OpenTypeFont::from_slice(&data[..])?;
     let subset = font.subset("Hello World".chars());
 

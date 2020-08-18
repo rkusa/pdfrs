@@ -37,7 +37,7 @@ pub struct CmapTable {
     pub(crate) encoding_records: Vec<EncodingRecord>,
 }
 
-impl<'a> FontTable<'a, (), ()> for CmapTable {
+impl<'a> FontTable<'a, (), (), ()> for CmapTable {
     fn name() -> &'static str {
         "cmap"
     }
@@ -45,6 +45,7 @@ impl<'a> FontTable<'a, (), ()> for CmapTable {
 
 impl<'a> FontData<'a> for CmapTable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -112,7 +113,7 @@ impl<'a> FontData<'a> for CmapTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         // cmap subtables
         let mut encoding_records_data = Vec::new();
         let mut raw_recods = Vec::with_capacity(self.encoding_records.len());
@@ -135,7 +136,7 @@ impl<'a> FontData<'a> for CmapTable {
             }
 
             let len_before = encoding_records_data.len();
-            subtable.subtable.pack(&mut encoding_records_data)?; // align to 4 bytes
+            subtable.subtable.pack(&mut encoding_records_data, ())?; // align to 4 bytes
             let record_offset = u32::try_from(subtable_offset).ok().unwrap_or(u32::MAX);
             raw_recods.push(RawEncodingRecord {
                 platform_id: subtable.platform_id,
@@ -149,7 +150,7 @@ impl<'a> FontData<'a> for CmapTable {
         wr.write_u16::<BigEndian>(self.version)?;
         wr.write_u16::<BigEndian>(self.encoding_records.len() as u16)?;
         for record in raw_recods {
-            record.pack(&mut wr)?;
+            record.pack(&mut wr, ())?;
         }
         wr.write_all(&encoding_records_data)?;
 
@@ -207,6 +208,7 @@ pub struct EncodingRecord {
 
 impl<'a> FontData<'a> for RawEncodingRecord {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -220,7 +222,7 @@ impl<'a> FontData<'a> for RawEncodingRecord {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.platform_id)?;
         wr.write_u16::<BigEndian>(self.encoding_id)?;
         wr.write_u32::<BigEndian>(self.offset)?;
@@ -245,6 +247,7 @@ impl Subtable {
 
 impl<'a> FontData<'a> for Subtable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -276,11 +279,11 @@ impl<'a> FontData<'a> for Subtable {
         }
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         let mut buf = Vec::new();
         match self {
-            Subtable::Format4(subtable) => subtable.pack(&mut buf)?,
-            Subtable::Format12(subtable) => subtable.pack(&mut buf)?,
+            Subtable::Format4(subtable) => subtable.pack(&mut buf, ())?,
+            Subtable::Format12(subtable) => subtable.pack(&mut buf, ())?,
         }
 
         if buf.len() > u16::MAX as usize {
@@ -338,7 +341,7 @@ mod test {
 
     #[test]
     fn test_cmap_table_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let cmap_table: CmapTable = table.unpack_required_table((), &mut cursor).unwrap();
@@ -360,7 +363,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        cmap_table.pack(&mut buffer).unwrap();
+        cmap_table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             CmapTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             cmap_table
@@ -369,7 +372,7 @@ mod test {
 
     #[test]
     fn test_cmap_subtable_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let cmap_table: CmapTable = table.unpack_required_table((), &mut cursor).unwrap();
@@ -377,7 +380,7 @@ mod test {
         for record in &cmap_table.encoding_records {
             // re-pack and compare
             let mut buffer = Vec::new();
-            record.subtable.pack(&mut buffer).unwrap();
+            record.subtable.pack(&mut buffer, ()).unwrap();
             assert_eq!(
                 &Subtable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
                 record.subtable.as_ref()

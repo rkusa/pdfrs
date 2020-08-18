@@ -123,7 +123,7 @@ impl GlyfTable {
     }
 }
 
-impl<'a> FontTable<'a, &'a LocaTable, ()> for GlyfTable {
+impl<'a> FontTable<'a, &'a LocaTable, (), ()> for GlyfTable {
     fn name() -> &'static str {
         "glyf"
     }
@@ -132,9 +132,11 @@ impl<'a> FontTable<'a, &'a LocaTable, ()> for GlyfTable {
 impl GlyphData {
     pub fn size_in_byte(&self) -> usize {
         let mut size = mem::size_of::<i16>() * 5 + self.description.size_in_byte();
-        // aligned to 4 bytes
-        if size % 4 != 0 {
-            size += 4 - (size % 4)
+        if let GlyphDescription::Composite(_) = self.description {
+            // aligned to 4 bytes
+            if size % 4 != 0 {
+                size += 4 - (size % 4)
+            }
         }
         size
     }
@@ -207,6 +209,7 @@ const WE_HAVE_INSTRUCTIONS: u16 = 0x0100;
 
 impl<'a> FontData<'a> for GlyfTable {
     type UnpackDep = &'a LocaTable;
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -246,10 +249,10 @@ impl<'a> FontData<'a> for GlyfTable {
         Ok(GlyfTable { glyphs })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         for data in &self.glyphs {
             if let Some(data) = data {
-                data.pack(&mut wr)?;
+                data.pack(&mut wr, ())?;
             }
         }
         Ok(())
@@ -293,6 +296,7 @@ impl<'a> FontData<'a> for GlyfTable {
 
 impl<'a> FontData<'a> for GlyphData {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -310,11 +314,7 @@ impl<'a> FontData<'a> for GlyphData {
 
             let mut has_more = true;
             let mut flags = 0;
-            let mut lc = 0;
             while has_more {
-                lc += 1;
-                assert!(lc < 10);
-
                 flags = rd.read_u16::<BigEndian>()?;
                 let glyph_index = rd.read_u16::<BigEndian>()?;
 
@@ -389,7 +389,7 @@ impl<'a> FontData<'a> for GlyphData {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         let mut awr = AlignWrite::new(&mut wr, 4);
 
         awr.write_i16::<BigEndian>(self.number_of_contours)?;
@@ -481,11 +481,14 @@ impl<'a> FontData<'a> for GlyphData {
                     awr.write_u16::<BigEndian>(instructions.len() as u16)?;
                     awr.write_all(&instructions)?;
                 }
+
+                let written = awr.end_aligned()?;
+                #[cfg(test)]
+                assert_eq!(written, self.size_in_byte());
+                #[cfg(not(test))]
+                let _ = written;
             }
         }
-
-        let written = awr.end_aligned()?;
-        assert_eq!(written, self.size_in_byte());
 
         Ok(())
     }
@@ -543,7 +546,7 @@ mod test {
 
     #[test]
     fn test_glyf_table_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let head_table: HeadTable = table.unpack_required_table((), &mut cursor).unwrap();
@@ -562,7 +565,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        glyf_table.pack(&mut buffer).unwrap();
+        glyf_table.pack(&mut buffer, ()).unwrap();
 
         let new_table = GlyfTable::unpack(&mut Cursor::new(&buffer[..]), &loca_table).unwrap();
         assert_eq!(new_table.glyphs.len(), glyf_table.glyphs.len());

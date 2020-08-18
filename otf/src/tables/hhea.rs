@@ -45,7 +45,7 @@ pub struct HheaTable {
     pub number_of_h_metrics: u16,
 }
 
-impl<'a> FontTable<'a, (), (&'a HeadTable, &'a HmtxTable)> for HheaTable {
+impl<'a> FontTable<'a, (), (), (&'a HeadTable, &'a HmtxTable)> for HheaTable {
     fn name() -> &'static str {
         "hhea"
     }
@@ -53,6 +53,7 @@ impl<'a> FontTable<'a, (), (&'a HeadTable, &'a HmtxTable)> for HheaTable {
 
 impl<'a> FontData<'a> for HheaTable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = (&'a HeadTable, &'a HmtxTable);
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -94,7 +95,7 @@ impl<'a> FontData<'a> for HheaTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         // TODO: update values based on hmax table
         wr.write_u16::<BigEndian>(self.major_version)?;
         wr.write_u16::<BigEndian>(self.minor_version)?;
@@ -161,7 +162,7 @@ mod test {
 
     #[test]
     fn test_hhea_table_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let hhea_table: HheaTable = table.unpack_required_table((), &mut cursor).unwrap();
@@ -183,7 +184,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        hhea_table.pack(&mut buffer).unwrap();
+        hhea_table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             HheaTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             hhea_table

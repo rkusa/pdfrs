@@ -41,6 +41,7 @@ impl Format12 {
 
 impl<'a> FontData<'a> for Format12 {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -62,11 +63,11 @@ impl<'a> FontData<'a> for Format12 {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u32::<BigEndian>(self.language)?;
         wr.write_u32::<BigEndian>(self.sequential_map_groups.len() as u32)?;
         for group in &self.sequential_map_groups {
-            group.pack(&mut wr)?;
+            group.pack(&mut wr, ())?;
         }
         Ok(())
     }
@@ -135,6 +136,7 @@ pub struct SequentialMapGroup {
 
 impl<'a> FontData<'a> for SequentialMapGroup {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -148,7 +150,7 @@ impl<'a> FontData<'a> for SequentialMapGroup {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u32::<BigEndian>(self.start_char_code)?;
         wr.write_u32::<BigEndian>(self.end_char_code)?;
         wr.write_u32::<BigEndian>(self.start_glyph_id)?;
@@ -165,7 +167,7 @@ mod test {
     use crate::OffsetTable;
 
     fn get_format12_subtable() -> Format12 {
-        let data = include_bytes!("../../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let cmap_table: CmapTable = table.unpack_required_table((), &mut cursor).unwrap();
@@ -193,7 +195,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        format12.pack(&mut buffer).unwrap();
+        format12.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             Format12::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             format12

@@ -13,19 +13,20 @@ pub mod post;
 use std::borrow::Cow;
 use std::io::{self, Cursor};
 
-pub trait FontTable<'a, U, S>: FontData<'a, UnpackDep = U, SubsetDep = S> {
+pub trait FontTable<'a, U, P, S>: FontData<'a, UnpackDep = U, PackDep = P, SubsetDep = S> {
     fn name() -> &'static str;
 }
 
 pub trait FontData<'a>: Sized {
     type UnpackDep;
+    type PackDep;
     type SubsetDep;
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
         rd: &mut Cursor<R>,
         _dep: Self::UnpackDep,
     ) -> Result<Self, io::Error>;
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error>;
+    fn pack<W: io::Write>(&self, wr: &mut W, _dep: Self::PackDep) -> Result<(), io::Error>;
 
     fn subset(&'a self, _glyphs: &[Glyph], _dep: Self::SubsetDep) -> Cow<'a, Self>
     where

@@ -34,14 +34,14 @@ impl OffsetTable {
             .and_then(|i| self.tables.get(i))
     }
 
-    pub fn unpack_table<'a, T, R, U, S>(
+    pub fn unpack_table<'a, T, R, U, P, S>(
         &self,
         dep: U,
         cursor: &mut Cursor<R>,
     ) -> Result<Option<T>, io::Error>
     where
         R: io::Read + AsRef<[u8]>,
-        T: FontTable<'a, U, S>,
+        T: FontTable<'a, U, P, S>,
     {
         // TODO: return Option for non-required tables?
         let record = match self.get_table_record(T::name()) {
@@ -54,16 +54,16 @@ impl OffsetTable {
         Ok(Some(T::unpack(&mut limit_read, dep)?))
     }
 
-    pub fn unpack_required_table<'a, T, R, U, S>(
+    pub fn unpack_required_table<'a, T, R, U, P, S>(
         &self,
         dep: U,
         cursor: &mut Cursor<R>,
     ) -> Result<T, io::Error>
     where
         R: io::Read + AsRef<[u8]>,
-        T: FontTable<'a, U, S>,
+        T: FontTable<'a, U, P, S>,
     {
-        self.unpack_table::<T, R, U, S>(dep, cursor)?
+        self.unpack_table::<T, R, U, P, S>(dep, cursor)?
             .ok_or_else(|| {
                 io::Error::new(io::ErrorKind::Other, format!("{} table missing", T::name()))
             })
@@ -72,6 +72,7 @@ impl OffsetTable {
 
 impl<'a> FontData<'a> for OffsetTable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -79,6 +80,13 @@ impl<'a> FontData<'a> for OffsetTable {
         _: Self::UnpackDep,
     ) -> Result<Self, io::Error> {
         let sfnt_version = SfntVersion::unpack(&mut rd, ())?;
+        if sfnt_version == SfntVersion::CFF {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "CFF fonts are not supported yet",
+            ));
+        }
+
         let num_tables = rd.read_u16::<BigEndian>()?;
         let search_range = rd.read_u16::<BigEndian>()?;
         let entry_selector = rd.read_u16::<BigEndian>()?;
@@ -99,14 +107,14 @@ impl<'a> FontData<'a> for OffsetTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
-        self.sfnt_version.pack(&mut wr)?;
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
+        self.sfnt_version.pack(&mut wr, ())?;
         wr.write_u16::<BigEndian>(self.num_tables)?;
         wr.write_u16::<BigEndian>(self.search_range)?;
         wr.write_u16::<BigEndian>(self.entry_selector)?;
         wr.write_u16::<BigEndian>(self.range_shift)?;
         for table in &self.tables {
-            table.pack(&mut wr)?;
+            table.pack(&mut wr, ())?;
         }
         Ok(())
     }
@@ -120,6 +128,7 @@ pub enum SfntVersion {
 
 impl<'a> FontData<'a> for SfntVersion {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -136,7 +145,7 @@ impl<'a> FontData<'a> for SfntVersion {
         }
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u32::<BigEndian>(match self {
             SfntVersion::TrueType => 0x00010000,
             SfntVersion::CFF => 0x4F54544F,
@@ -155,6 +164,7 @@ pub struct TableRecord {
 
 impl<'a> FontData<'a> for TableRecord {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -171,7 +181,7 @@ impl<'a> FontData<'a> for TableRecord {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_all(&self.tag.as_bytes())?;
         wr.write_u32::<BigEndian>(self.check_sum)?;
         wr.write_u32::<BigEndian>(self.offset)?;
@@ -186,7 +196,7 @@ mod test {
 
     #[test]
     fn test_offset_table_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let table = OffsetTable::unpack(&mut Cursor::new(&data[..]), ()).unwrap();
         assert_eq!(table.sfnt_version, SfntVersion::TrueType);
         assert_eq!(table.num_tables, 17);
@@ -238,7 +248,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        table.pack(&mut buffer).unwrap();
+        table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             OffsetTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             table

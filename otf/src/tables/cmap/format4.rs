@@ -80,6 +80,7 @@ impl Format4 {
 
 impl<'a> FontData<'a> for Format4 {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -121,7 +122,7 @@ impl<'a> FontData<'a> for Format4 {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.language)?;
         wr.write_u16::<BigEndian>(self.seg_count_x2)?;
         wr.write_u16::<BigEndian>(self.search_range)?;
@@ -248,7 +249,7 @@ mod test {
     use crate::OffsetTable;
 
     fn get_format4_subtable() -> Format4 {
-        let data = include_bytes!("../../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let cmap_table: CmapTable = table.unpack_required_table((), &mut cursor).unwrap();
@@ -277,7 +278,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        format4.pack(&mut buffer).unwrap();
+        format4.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             Format4::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             format4
@@ -334,7 +335,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        format4.pack(&mut buffer).unwrap();
+        format4.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             Format4::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             format4

@@ -44,20 +44,26 @@ impl OpenTypeFont {
         let maxp_table = offset_table.unpack_required_table((), &mut cursor)?;
         let loca_table =
             offset_table.unpack_required_table((&head_table, &maxp_table), &mut cursor)?;
+        let os2_table = offset_table.unpack_required_table((), &mut cursor)?;
+        let cmap_table = offset_table.unpack_required_table((), &mut cursor)?;
+        let glyf_table = offset_table.unpack_required_table(&loca_table, &mut cursor)?;
+        let hmtx_table =
+            offset_table.unpack_required_table((&hhea_table, &maxp_table), &mut cursor)?;
+        let name_table = offset_table.unpack_required_table((), &mut cursor)?;
+        let post_table = offset_table.unpack_required_table((), &mut cursor)?;
 
         Ok(OpenTypeFont {
             sfnt_version: offset_table.sfnt_version,
-            os2_table: offset_table.unpack_required_table((), &mut cursor)?,
-            cmap_table: offset_table.unpack_required_table((), &mut cursor)?,
-            glyf_table: offset_table.unpack_required_table(&loca_table, &mut cursor)?,
-            hmtx_table: offset_table
-                .unpack_required_table((&hhea_table, &maxp_table), &mut cursor)?,
+            os2_table,
+            cmap_table,
+            glyf_table,
+            hmtx_table,
             loca_table,
             head_table,
             hhea_table,
             maxp_table,
-            name_table: offset_table.unpack_required_table((), &mut cursor)?,
-            post_table: offset_table.unpack_required_table((), &mut cursor)?,
+            name_table,
+            post_table,
         })
     }
 
@@ -212,28 +218,28 @@ impl OpenTypeFont {
             // be included if they are required by the font instructions.
 
             let mut writer = FontWriter::new(7);
-            writer.pack(&self.cmap_table)?; // also needed if not provided via a PDF CMAP
-            writer.pack(&self.glyf_table)?;
+            writer.pack(&self.cmap_table, ())?; // also needed if not provided via a PDF CMAP
+            writer.pack(&self.glyf_table, ())?;
             let check_sum_adjustment_offset = writer.offset() + 8;
-            writer.pack(&self.head_table)?;
-            writer.pack(&self.hhea_table)?;
-            writer.pack(&self.hmtx_table)?;
-            writer.pack(&self.loca_table)?;
-            writer.pack(&self.maxp_table)?;
+            writer.pack(&self.head_table, ())?;
+            writer.pack(&self.hhea_table, ())?;
+            writer.pack(&self.hmtx_table, ())?;
+            writer.pack(&self.loca_table, &self.glyf_table)?;
+            writer.pack(&self.maxp_table, ())?;
             writer.finish(self.sfnt_version, check_sum_adjustment_offset)
         } else {
             let mut writer = FontWriter::new(10);
-            writer.pack(&self.os2_table)?;
-            writer.pack(&self.cmap_table)?;
-            writer.pack(&self.glyf_table)?;
+            writer.pack(&self.os2_table, ())?;
+            writer.pack(&self.cmap_table, ())?;
+            writer.pack(&self.glyf_table, ())?;
             let check_sum_adjustment_offset = writer.offset() + 8;
-            writer.pack(&self.head_table)?;
-            writer.pack(&self.hhea_table)?;
-            writer.pack(&self.hmtx_table)?;
-            writer.pack(&self.loca_table)?;
-            writer.pack(&self.maxp_table)?;
-            writer.pack(&self.name_table)?;
-            writer.pack(&self.post_table)?;
+            writer.pack(&self.head_table, ())?;
+            writer.pack(&self.hhea_table, ())?;
+            writer.pack(&self.hmtx_table, ())?;
+            writer.pack(&self.loca_table, &self.glyf_table)?;
+            writer.pack(&self.maxp_table, ())?;
+            writer.pack(&self.name_table, ())?;
+            writer.pack(&self.post_table, ())?;
             writer.finish(self.sfnt_version, check_sum_adjustment_offset)
         }
     }
@@ -279,9 +285,9 @@ impl FontWriter {
         self.offset_table_len() + self.buffer.len()
     }
 
-    fn pack<'a, T, U, S>(&mut self, table: &T) -> Result<(), io::Error>
+    fn pack<'a, T, U, P, S>(&mut self, table: &T, dep: P) -> Result<(), io::Error>
     where
-        T: FontTable<'a, U, S>,
+        T: FontTable<'a, U, P, S>,
     {
         if self.tables.len() == self.tables.capacity() {
             return Err(io::Error::new(
@@ -294,7 +300,7 @@ impl FontWriter {
         }
 
         let start = self.buffer.len();
-        table.pack(&mut self.buffer)?;
+        table.pack(&mut self.buffer, dep)?;
         let len = self.buffer.len() - start;
         if self.buffer.len() % 4 != 0 {
             // align to 4 bytes
@@ -345,7 +351,7 @@ impl FontWriter {
             tables: self.tables,
         };
         let mut offset_data = Vec::new();
-        offset_table.pack(&mut offset_data)?;
+        offset_table.pack(&mut offset_data, ())?;
 
         // calculate and write head.check_sum_adjustment
         let mut check_sum_adjustment = check_sum(Cursor::new(&offset_data));
@@ -375,10 +381,8 @@ mod test {
     use super::*;
     use pretty_assertions::assert_eq;
 
-    #[test]
-    fn test_writing_font() {
-        let data = include_bytes!("../tests/fonts/Iosevka/iosevka-regular.ttf");
-        let font = OpenTypeFont::from_slice(&data[..]).unwrap();
+    fn test_font(data: &[u8]) {
+        let font = OpenTypeFont::from_slice(data).unwrap();
 
         let mut data = Vec::new();
         font.to_writer(&mut data, false).unwrap();
@@ -389,15 +393,85 @@ mod test {
             font.head_table.check_sum_adjustment
         );
         rewritten_font.head_table.check_sum_adjustment = font.head_table.check_sum_adjustment;
-        assert_eq!(
-            rewritten_font, font,
-            "Re-written font does not match original font"
-        );
+
+        let OpenTypeFont {
+            sfnt_version,
+            os2_table,
+            cmap_table,
+            glyf_table,
+            head_table,
+            hhea_table,
+            hmtx_table,
+            loca_table,
+            maxp_table,
+            name_table,
+            post_table,
+        } = rewritten_font;
+        assert_eq!(sfnt_version, font.sfnt_version);
+        assert_eq!(os2_table, font.os2_table);
+        assert_eq!(cmap_table, font.cmap_table);
+
+        assert_eq!(glyf_table.glyphs.len(), font.glyf_table.glyphs.len());
+        for (i, (l, r)) in glyf_table
+            .glyphs
+            .iter()
+            .zip(font.glyf_table.glyphs.iter())
+            .enumerate()
+        {
+            assert_eq!(l, r, "Glyphs {} do not match", i);
+        }
+
+        assert_eq!(head_table, font.head_table);
+        assert_eq!(hhea_table, font.hhea_table);
+        assert_eq!(hmtx_table, font.hmtx_table);
+
+        assert_eq!(loca_table.offsets.len(), font.loca_table.offsets.len());
+        // compare taking possible added 4 byte alignment into account
+        let mut offset = 0;
+        for (i, (l, r)) in loca_table
+            .offsets
+            .iter()
+            .zip(font.loca_table.offsets.iter())
+            .enumerate()
+        {
+            let delta = (*l as i64 - *r as i64 - offset).abs();
+            offset += delta;
+            assert!(
+                delta < 4,
+                "Offsets of glyph {} do not match - delta is {}",
+                i,
+                delta
+            );
+        }
+
+        assert_eq!(maxp_table, font.maxp_table);
+        assert_eq!(name_table, font.name_table);
+        assert_eq!(post_table, font.post_table);
+    }
+
+    #[test]
+    fn test_iosevka() {
+        let data = include_bytes!("../../fonts/Iosevka/iosevka-regular.ttf");
+        test_font(&data[..]);
+    }
+
+    #[test]
+    fn test_source_sans_pro() {
+        let data = include_bytes!("../../fonts/SourceSansPro/SourceSansPro-Regular.ttf");
+        test_font(&data[..]);
+    }
+
+    #[test]
+    fn test_cff_font_error() {
+        let data = include_bytes!("../../fonts/PublicSans/PublicSans-Regular.otf");
+        let err = OpenTypeFont::from_slice(&data[..]).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::Other);
+        assert_eq!(err.to_string().as_str(), "CFF fonts are not supported yet");
     }
 
     #[test]
     fn test_reparse_subset() {
-        let data = include_bytes!("../tests/fonts/Iosevka/iosevka-regular.ttf");
+        let data = include_bytes!("../../fonts/Iosevka/iosevka-regular.ttf");
         let font = OpenTypeFont::from_slice(&data[..]).unwrap();
         let subset = font.subset("abA".chars());
 

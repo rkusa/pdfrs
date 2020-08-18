@@ -27,7 +27,7 @@ pub struct LongHorMetric {
     pub(crate) lsb: i16,
 }
 
-impl<'a> FontTable<'a, (&'a HheaTable, &'a MaxpTable), ()> for HmtxTable {
+impl<'a> FontTable<'a, (&'a HheaTable, &'a MaxpTable), (), ()> for HmtxTable {
     fn name() -> &'static str {
         "hmtx"
     }
@@ -35,6 +35,7 @@ impl<'a> FontTable<'a, (&'a HheaTable, &'a MaxpTable), ()> for HmtxTable {
 
 impl<'a> FontData<'a> for HmtxTable {
     type UnpackDep = (&'a HheaTable, &'a MaxpTable);
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -56,7 +57,7 @@ impl<'a> FontData<'a> for HmtxTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         if self.h_metrics.len() > u16::MAX as usize {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -64,7 +65,7 @@ impl<'a> FontData<'a> for HmtxTable {
             ));
         }
         for metric in &self.h_metrics {
-            metric.pack(&mut wr)?;
+            metric.pack(&mut wr, ())?;
         }
 
         if self.left_side_bearings.len() > u16::MAX as usize {
@@ -106,6 +107,7 @@ impl<'a> FontData<'a> for HmtxTable {
 
 impl<'a> FontData<'a> for LongHorMetric {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -118,7 +120,7 @@ impl<'a> FontData<'a> for LongHorMetric {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.advance_width)?;
         wr.write_i16::<BigEndian>(self.lsb)?;
         Ok(())
@@ -132,7 +134,7 @@ mod test {
 
     #[test]
     fn test_hmtx_table_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let hhea_table: HheaTable = table.unpack_required_table((), &mut cursor).unwrap();
@@ -152,7 +154,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        hmtx_table.pack(&mut buffer).unwrap();
+        hmtx_table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             HmtxTable::unpack(&mut Cursor::new(&buffer[..]), (&hhea_table, &maxp_table)).unwrap(),
             hmtx_table

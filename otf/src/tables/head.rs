@@ -75,7 +75,7 @@ pub struct HeadTable {
     pub(crate) glyph_data_format: i16,
 }
 
-impl<'a> FontTable<'a, (), (&'a GlyfTable, &'a LocaTable)> for HeadTable {
+impl<'a> FontTable<'a, (), (), (&'a GlyfTable, &'a LocaTable)> for HeadTable {
     fn name() -> &'static str {
         "head"
     }
@@ -83,6 +83,7 @@ impl<'a> FontTable<'a, (), (&'a GlyfTable, &'a LocaTable)> for HeadTable {
 
 impl<'a> FontData<'a> for HeadTable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = (&'a GlyfTable, &'a LocaTable);
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -117,7 +118,7 @@ impl<'a> FontData<'a> for HeadTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.major_version)?;
         wr.write_u16::<BigEndian>(self.minor_version)?;
         wr.write_i16::<BigEndian>(self.font_revision.0)?;
@@ -186,7 +187,7 @@ mod test {
 
     #[test]
     fn test_head_table_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let head_table: HeadTable = table.unpack_required_table((), &mut cursor).unwrap();
@@ -214,7 +215,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        head_table.pack(&mut buffer).unwrap();
+        head_table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             HeadTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             head_table

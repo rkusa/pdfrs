@@ -66,7 +66,7 @@ impl MaxpTable {
     }
 }
 
-impl<'a> FontTable<'a, (), ()> for MaxpTable {
+impl<'a> FontTable<'a, (), (), ()> for MaxpTable {
     fn name() -> &'static str {
         "maxp"
     }
@@ -74,6 +74,7 @@ impl<'a> FontTable<'a, (), ()> for MaxpTable {
 
 impl<'a> FontData<'a> for MaxpTable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -91,17 +92,17 @@ impl<'a> FontData<'a> for MaxpTable {
         }
     }
 
-    fn pack<W: io::Write>(&self, mut wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, mut wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         match self {
             MaxpTable::CFF(table) => {
                 // version
                 wr.write_u32::<BigEndian>(0x00005000)?;
-                table.pack(&mut wr)?;
+                table.pack(&mut wr, ())?;
             }
             MaxpTable::TrueType(table) => {
                 // version
                 wr.write_u32::<BigEndian>(0x00010000)?;
-                table.pack(&mut wr)?;
+                table.pack(&mut wr, ())?;
             }
         }
 
@@ -127,6 +128,7 @@ impl<'a> FontData<'a> for MaxpTable {
 
 impl<'a> FontData<'a> for CffMaxpTable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -138,7 +140,7 @@ impl<'a> FontData<'a> for CffMaxpTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.num_glyphs)?;
         Ok(())
     }
@@ -155,6 +157,7 @@ impl<'a> FontData<'a> for CffMaxpTable {
 
 impl<'a> FontData<'a> for TrueTypeMaxpTable {
     type UnpackDep = ();
+    type PackDep = ();
     type SubsetDep = ();
 
     fn unpack<R: io::Read + AsRef<[u8]>>(
@@ -179,7 +182,7 @@ impl<'a> FontData<'a> for TrueTypeMaxpTable {
         })
     }
 
-    fn pack<W: io::Write>(&self, wr: &mut W) -> Result<(), io::Error> {
+    fn pack<W: io::Write>(&self, wr: &mut W, _: Self::PackDep) -> Result<(), io::Error> {
         wr.write_u16::<BigEndian>(self.num_glyphs)?;
         wr.write_u16::<BigEndian>(self.max_points)?;
         wr.write_u16::<BigEndian>(self.max_contours)?;
@@ -215,7 +218,7 @@ mod test {
 
     #[test]
     fn test_maxp_table_true_type_encode_decode() {
-        let data = include_bytes!("../../tests/fonts/Iosevka/iosevka-regular.ttf").to_vec();
+        let data = include_bytes!("../../../fonts/Iosevka/iosevka-regular.ttf").to_vec();
         let mut cursor = Cursor::new(&data[..]);
         let table = OffsetTable::unpack(&mut cursor, ()).unwrap();
         let maxp_table: MaxpTable = table.unpack_required_table((), &mut cursor).unwrap();
@@ -242,7 +245,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        maxp_table.pack(&mut buffer).unwrap();
+        maxp_table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             MaxpTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             maxp_table
@@ -266,7 +269,7 @@ mod test {
 
         // re-pack and compare
         let mut buffer = Vec::new();
-        maxp_table.pack(&mut buffer).unwrap();
+        maxp_table.pack(&mut buffer, ()).unwrap();
         assert_eq!(
             MaxpTable::unpack(&mut Cursor::new(&buffer[..]), ()).unwrap(),
             maxp_table
