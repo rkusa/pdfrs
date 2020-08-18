@@ -21,7 +21,6 @@ pub struct Document<F: FontCollection, W> {
     id: String,
     creation_date: DateTime<Utc>,
     producer: String,
-    #[allow(unused)]
     compressed: bool,
     page_state: PageState,
     font_collection: F,
@@ -130,6 +129,7 @@ where
             font_collection,
             subsets,
             pages,
+            compressed,
             ..
         } = self;
 
@@ -151,7 +151,7 @@ where
         for (font_ref, subsets) in subsets {
             for (subset_ref, id) in subsets {
                 doc = font_collection
-                    .write_objects(font_ref, subset_ref, id, doc)
+                    .write_objects(font_ref, subset_ref, id, doc, compressed)
                     .await?;
             }
         }

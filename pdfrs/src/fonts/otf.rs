@@ -6,6 +6,7 @@ use super::font::{Font, FontCollection, SingleFont, SubsetRef};
 use crate::stream::{Stream, StreamRef};
 use crate::writer::DocWriter;
 use async_std::io::prelude::Write;
+use async_std::io::prelude::WriteExt;
 use otf::Glyph;
 use serde::Serialize;
 use serde_pdf::{Object, ObjectId, Reference};
@@ -103,6 +104,7 @@ impl FontCollection for OpenTypeFont {
         subset_ref: SubsetRef,
         obj_id: ObjectId,
         doc: DocWriter<W>,
+        compressed: bool,
     ) -> Result<DocWriter<W>, serde_pdf::Error> {
         let subsets = self.subsets.borrow();
         let subset = match subsets.get(subset_ref.font_id()) {
@@ -135,13 +137,19 @@ impl FontCollection for OpenTypeFont {
         // sort for deterministic results
         glyphs.sort_by_key(|g| g.index);
 
-        // TODO: remove tables not relevant for PDFs
         let new_font = self.font.subset_from_glyphs(&glyphs);
 
         let mut font_file = Stream::start(doc, true, true).await?;
         let font_file_ref = font_file.to_reference();
         new_font.to_async_writer(&mut font_file, true).await?;
-        let mut doc = font_file.end().await?;
+        let doc = font_file.end().await?;
+
+        let subset_name = format!("{}+{}", tag(subset_ref.0), self.post_script_name);
+
+        let mut cmap = Stream::start(doc, compressed, false).await?;
+        let cmap_ref = cmap.to_reference();
+        write_cmap(&mut cmap, &subset_name, &subset).await?;
+        let mut doc = cmap.end().await?;
 
         let mut flags = 0;
         if (new_font.is_fixed_pitch()) {
@@ -164,7 +172,7 @@ impl FontCollection for OpenTypeFont {
             obj_id.rev(),
             FontObject {
                 subtype: FontType::TrueType,
-                base_font: format!("{}+{}", tag(subset_ref.0), self.post_script_name),
+                base_font: subset_name,
                 first_char: subset.first_char(),
                 last_char: subset.last_char(),
                 widths: subset
@@ -186,12 +194,50 @@ impl FontCollection for OpenTypeFont {
                     font_file_2: font_file_ref,
                 },
                 encoding: FontEncoding::WinAnsiEncoding,
-                // TODO: ToUnicode
+                to_unicode: cmap_ref,
             },
         );
         doc.write_object(font_obj).await?;
         Ok(doc)
     }
+}
+
+async fn write_cmap<W: Write + Unpin>(
+    stream: &mut Stream<W>,
+    subset_name: &str,
+    subset: &UnicodeSubset,
+) -> Result<(), serde_pdf::Error> {
+    let cmap_name = serde_pdf::to_string(&subset_name)?;
+
+    writeln!(stream, "/CIDInit /ProcSet findresource begin").await?;
+    writeln!(stream, "12 dict begin").await?;
+    writeln!(stream, "begincmap").await?;
+    writeln!(stream, "/CIDSystemInfo 3 dict dup begin").await?;
+    writeln!(stream, "  /Registry (Adobe) def").await?;
+    writeln!(stream, "  /Ordering (Identity) def").await?;
+    writeln!(stream, "  /Supplement 0 def").await?;
+    writeln!(stream, "end def").await?;
+    writeln!(stream, "/CMapName {}", cmap_name).await?;
+    writeln!(stream, "/CMapType 2 def").await?;
+    writeln!(stream, "1 begincodespacerange").await?;
+    writeln!(stream, "<0000><ffff>").await?;
+    writeln!(stream, "endcodespacerange").await?;
+    writeln!(stream, "{} beginbfchar", subset.mapping_inverted.len()).await?;
+
+    // TODO: try to use `bfrange` where possible?
+    for pair in subset.chars() {
+        if let Some((b, ch)) = pair {
+            writeln!(stream, "<{:04x}> <{:04x}>", b, ch as u32).await?;
+        }
+    }
+
+    writeln!(stream, "endbfchar").await?;
+    writeln!(stream, "endcmap").await?;
+    writeln!(stream, "CMapName currentdict /CMap defineresource pop").await?;
+    writeln!(stream, "end").await?;
+    writeln!(stream, "end").await?;
+
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -215,6 +261,7 @@ struct FontObject<'a> {
     widths: Vec<u16>,
     font_descriptor: FontDescriptor<'a>,
     encoding: FontEncoding,
+    to_unicode: Reference<StreamRef>,
 }
 
 #[derive(Serialize)]

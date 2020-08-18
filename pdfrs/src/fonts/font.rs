@@ -15,6 +15,7 @@ pub trait FontCollection {
         subset: SubsetRef,
         obj_id: ObjectId,
         doc: DocWriter<W>,
+        compressed: bool,
     ) -> Result<DocWriter<W>, serde_pdf::Error>;
 }
 

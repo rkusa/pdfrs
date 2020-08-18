@@ -37,6 +37,7 @@ impl<'a> FontCollection for &'a pdfrs_afm::AfmFont {
         _subset: SubsetRef,
         obj_id: ObjectId,
         mut doc: DocWriter<W>,
+        _: bool,
     ) -> Result<DocWriter<W>, serde_pdf::Error> {
         let font_obj = Object::new(
             obj_id.id(),
