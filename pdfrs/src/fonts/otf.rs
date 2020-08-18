@@ -227,7 +227,13 @@ async fn write_cmap<W: Write + Unpin>(
     // TODO: try to use `bfrange` where possible?
     for pair in subset.chars() {
         if let Some((b, ch)) = pair {
-            writeln!(stream, "<{:04x}> <{:04x}>", b, ch as u32).await?;
+            if ch as u32 > u16::MAX as u32 {
+                let mut utf16 = [0; 2];
+                ch.encode_utf16(&mut utf16);
+                writeln!(stream, "<{:04x}><{:04x}{:04x}>", b, utf16[0], utf16[1]).await?;
+            } else {
+                writeln!(stream, "<{:04x}><{:04x}>", b, ch as u32).await?;
+            }
         }
     }
 
@@ -258,7 +264,7 @@ struct FontObject<'a> {
     base_font: String,
     first_char: u8,
     last_char: u8,
-    widths: Vec<u16>,
+    widths: Vec<u32>,
     font_descriptor: FontDescriptor<'a>,
     encoding: FontEncoding,
     to_unicode: Reference<StreamRef>,
@@ -271,13 +277,13 @@ struct FontDescriptor<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     font_family: Option<&'a str>,
     flags: u32,
-    font_b_box: [i16; 4],
+    font_b_box: [i32; 4],
     italic_angle: i32,
-    ascent: i16,
-    descent: i16,
-    leading: i16,
-    cap_height: i16,
-    x_height: i16,
+    ascent: i32,
+    descent: i32,
+    leading: i32,
+    cap_height: i32,
+    x_height: i32,
     stem_v: u16,
     font_file_2: Reference<StreamRef>,
 }

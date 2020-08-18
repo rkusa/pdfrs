@@ -43,3 +43,13 @@ fn source_sans_pro_regular() -> impl FontCollection {
 async fn basic_proportional_otf_text(doc: &mut Document<_, File>) {
     doc.text("Hello World — Привет мир", None).await.unwrap();
 }
+
+fn noto_sans_brahmi_regular() -> impl FontCollection {
+    let data = include_bytes!("../../fonts/NotoSansBrahmi/NotoSansBrahmi-Regular.ttf");
+    OpenTypeFont::from_slice(&data[..]).unwrap()
+}
+
+#[pdf_test("./fixtures/cmap_non_bmp.pdf", noto_sans_brahmi_regular)]
+async fn cmap_non_bmp(doc: &mut Document<_, File>) {
+    doc.text("𑀅𑀆𑀇𑀈𑀉𑀊𑀋𑀌𑀍𑀎𑀏", None).await.unwrap();
+}

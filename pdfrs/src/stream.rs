@@ -66,7 +66,9 @@ impl<W: AsyncWrite + Unpin> Stream<W> {
         let id = wr.reserve_object_id();
         let len_obj_id = wr.reserve_object_id();
         let len1_obj_id = if compresse && with_len1 {
-            Some(wr.reserve_object_id())
+            let len1_id = wr.reserve_object_id();
+            wr.add_xref(len1_id.id());
+            Some(len1_id)
         } else {
             None
         };

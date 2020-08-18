@@ -102,41 +102,46 @@ impl OpenTypeFont {
         self.head_table.units_per_em
     }
 
-    pub fn bbox(&self) -> [i16; 4] {
+    pub fn scale_factor(&self) -> f64 {
+        1000.0 / self.head_table.units_per_em as f64
+    }
+
+    pub fn bbox(&self) -> [i32; 4] {
+        let scale_factor = self.scale_factor();
         [
-            self.head_table.x_min,
-            self.head_table.y_min,
-            self.head_table.x_max,
-            self.head_table.y_max,
+            (self.head_table.x_min as f64 * scale_factor) as i32,
+            (self.head_table.y_min as f64 * scale_factor) as i32,
+            (self.head_table.x_max as f64 * scale_factor) as i32,
+            (self.head_table.y_max as f64 * scale_factor) as i32,
         ]
     }
 
-    pub fn ascent(&self) -> i16 {
-        self.os2_table.s_typo_ascender
+    pub fn ascent(&self) -> i32 {
+        (self.os2_table.s_typo_ascender as f64 * self.scale_factor()) as i32
     }
 
-    pub fn descent(&self) -> i16 {
-        self.os2_table.s_typo_descender
+    pub fn descent(&self) -> i32 {
+        (self.os2_table.s_typo_descender as f64 * self.scale_factor()) as i32
     }
 
-    pub fn line_gap(&self) -> i16 {
-        self.hhea_table.line_gap
+    pub fn line_gap(&self) -> i32 {
+        (self.hhea_table.line_gap as f64 * self.scale_factor()) as i32
     }
 
-    pub fn cap_height(&self) -> i16 {
-        self.os2_table.s_cap_height
+    pub fn cap_height(&self) -> i32 {
+        (self.os2_table.s_cap_height as f64 * self.scale_factor()) as i32
     }
 
-    pub fn x_height(&self) -> i16 {
-        self.os2_table.sx_height
+    pub fn x_height(&self) -> i32 {
+        (self.os2_table.sx_height as f64 * self.scale_factor()) as i32
     }
 
-    pub fn char_width(&self, ch: char) -> u16 {
+    pub fn char_width(&self, ch: char) -> u32 {
         let ix = self.glyph_id(u32::from(ch)).unwrap_or(0);
         self.hmtx_table
             .h_metrics
             .get(ix as usize)
-            .map(|m| m.advance_width)
+            .map(|m| (m.advance_width as f64 * self.scale_factor()) as u32)
             .unwrap_or(0)
     }
 
@@ -144,22 +149,13 @@ impl OpenTypeFont {
     pub fn glyph_id(&self, codepoint: u32) -> Option<u16> {
         self.cmap_table
             .encoding_records
-            .first()
-            .and_then(|record| record.subtable.glyph_id(codepoint))
+            .iter()
+            .find_map(|r| r.subtable.glyph_id(codepoint))
     }
 
     pub fn subset(&self, chars: impl Iterator<Item = char>) -> Self {
-        let subtable = match self.cmap_table.encoding_records.first() {
-            Some(r) => r.subtable.clone(),
-            // TODO: error instead?
-            None => return self.clone(),
-        };
         let glyphs = chars
-            .filter_map(|c| {
-                subtable
-                    .glyph_id(u32::from(c))
-                    .map(|index| (index, u32::from(c)))
-            })
+            .filter_map(|c| self.glyph_id(c as u32).map(|index| (index, u32::from(c))))
             .fold(HashMap::new(), |mut glyphs, (i, c)| {
                 let glyph = glyphs.entry(i).or_insert_with(|| Glyph {
                     index: i,
@@ -458,6 +454,12 @@ mod test {
     #[test]
     fn test_source_sans_pro() {
         let data = include_bytes!("../../fonts/SourceSansPro/SourceSansPro-Regular.ttf");
+        test_font(&data[..]);
+    }
+
+    #[test]
+    fn test_noto_sans() {
+        let data = include_bytes!("../../fonts/NotoSans/NotoSans-Regular.ttf");
         test_font(&data[..]);
     }
 
