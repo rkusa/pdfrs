@@ -3,6 +3,7 @@ pub mod glyf;
 pub mod head;
 pub mod hhea;
 pub mod hmtx;
+pub mod kern;
 pub mod loca;
 pub mod maxp;
 pub mod name;
@@ -11,6 +12,7 @@ pub mod os2;
 pub mod post;
 
 use std::borrow::Cow;
+use std::error;
 use std::io::{self, Cursor};
 
 pub trait FontTable<'a, U, P, S>: FontData<'a, UnpackDep = U, PackDep = P, SubsetDep = S> {
@@ -55,4 +57,8 @@ impl From<u16> for Glyph {
     fn from(index: u16) -> Self {
         Glyph::new(index)
     }
+}
+
+pub(self) fn error(msg: impl Into<Box<dyn error::Error + Send + Sync>>) -> io::Error {
+    io::Error::new(io::ErrorKind::Other, msg)
 }
