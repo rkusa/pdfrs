@@ -1,5 +1,6 @@
 pub mod cmap;
 pub mod glyf;
+pub mod gpos;
 pub mod head;
 pub mod hhea;
 pub mod hmtx;
