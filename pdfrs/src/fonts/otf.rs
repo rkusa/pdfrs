@@ -152,17 +152,17 @@ impl FontCollection for OpenTypeFont {
         let mut doc = cmap.end().await?;
 
         let mut flags = 0;
-        if (new_font.is_fixed_pitch()) {
+        if new_font.is_fixed_pitch() {
             flags |= 1 << 0;
         }
-        if (new_font.is_serif()) {
+        if new_font.is_serif() {
             flags |= 1 << 1;
         }
-        if (new_font.is_script()) {
+        if new_font.is_script() {
             flags |= 1 << 3;
         }
         flags |= 1 << 5; // assume non-symbolic
-        if (new_font.is_italic()) {
+        if new_font.is_italic() {
             flags |= 1 << 6;
         }
 
@@ -312,6 +312,7 @@ impl UnicodeSubset {
         Some(self.current_codepoint)
     }
 
+    #[allow(clippy::needless_lifetimes)]
     fn chars<'a>(&'a self) -> impl Iterator<Item = Option<(u8, char)>> + 'a {
         (self.first_char()..self.last_char())
             .map(move |b| self.mapping_inverted.get(&b).map(|ch| (b, *ch)))

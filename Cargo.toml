@@ -8,4 +8,4 @@ members = [
 ]
 
 [patch.crates-io]
-unicode-linebreak = { git = "https://github.com/rkusa/unicode-linebreak.git" }
+unicode-linebreak = { git = "https://github.com/rkusa/unicode-linebreak.git", rev = "88a3405da3863af26fed5d57898d06a96a249208" }
