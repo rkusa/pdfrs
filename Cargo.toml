@@ -9,3 +9,7 @@ members = [
 
 [patch.crates-io]
 unicode-linebreak = { git = "https://github.com/rkusa/unicode-linebreak.git", rev = "88a3405da3863af26fed5d57898d06a96a249208" }
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
